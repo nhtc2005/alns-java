@@ -137,8 +137,8 @@ public final class Alns<S extends Solution<S>> {
     return Objects.requireNonNull(solution.copy(), nullMessage);
   }
 
-  private static <S extends Solution<S>> boolean isBetter(S candidate, S incumbent) {
-    return candidate.getObjectiveValue() < incumbent.getObjectiveValue();
+  private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S incumbentSolution) {
+    return candidateSolution.compareTo(incumbentSolution) < 0;
   }
 
   private void validateOperatorSelection(OperatorSelection selection) {
