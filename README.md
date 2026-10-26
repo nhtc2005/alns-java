@@ -1,6 +1,6 @@
 # ALNS Java
 
-An Adaptive Large Neighbourhood Search framework for Java.
+An Adaptive Large Neighborhood Search framework for Java.
 
 ## Requirements
 
