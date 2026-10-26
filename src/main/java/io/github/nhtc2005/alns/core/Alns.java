@@ -95,19 +95,22 @@ public final class Alns<S extends Solution<S>> {
               "RepairOperator.apply(...) must not return null.");
 
       SolutionStatus status;
-      if (candidateSolution.isFeasible() && isBetter(candidateSolution, bestSolution)) {
-        currentSolution = candidateSolution;
-        bestSolution = copyOf(candidateSolution, "Solution.copy() must not return null.");
-        status = SolutionStatus.BEST;
-      } else if (candidateSolution.isFeasible()
-          && acceptanceCriterion.shouldAccept(
+      boolean isFeasible = candidateSolution.isFeasible();
+      boolean isAccepted =
+          acceptanceCriterion.shouldAccept(
               new AcceptanceContext<>(
                   iteration,
                   elapsedNanos,
                   bestSolution,
                   currentSolution,
                   candidateSolution,
-                  randomGenerator))) {
+                  randomGenerator));
+
+      if (isFeasible && isBetter(candidateSolution, bestSolution)) {
+        currentSolution = candidateSolution;
+        bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
+        status = SolutionStatus.BEST;
+      } else if (isFeasible && isAccepted) {
         status =
             isBetter(candidateSolution, currentSolution)
                 ? SolutionStatus.BETTER
@@ -133,19 +136,19 @@ public final class Alns<S extends Solution<S>> {
     return List.copyOf(values);
   }
 
-  private static <S extends Solution<S>> S copyOf(S solution, String nullMessage) {
-    return Objects.requireNonNull(solution.copy(), nullMessage);
+  private static <S extends Solution<S>> S copyOf(S solution, String message) {
+    return Objects.requireNonNull(solution.copy(), message);
   }
 
-  private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S incumbentSolution) {
-    return candidateSolution.compareTo(incumbentSolution) < 0;
+  private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S currentSolution) {
+    return candidateSolution.compareTo(currentSolution) < 0;
   }
 
-  private void validateOperatorSelection(OperatorSelection selection) {
-    if (selection.destroyOperatorIndex() < 0
-        || selection.destroyOperatorIndex() >= destroyOperators.size()
-        || selection.repairOperatorIndex() < 0
-        || selection.repairOperatorIndex() >= repairOperators.size()) {
+  private void validateOperatorSelection(OperatorSelection operatorSelection) {
+    if (operatorSelection.destroyOperatorIndex() < 0
+        || operatorSelection.destroyOperatorIndex() >= destroyOperators.size()
+        || operatorSelection.repairOperatorIndex() < 0
+        || operatorSelection.repairOperatorIndex() >= repairOperators.size()) {
       throw new IllegalStateException("operatorSelector returned an out-of-range operator index.");
     }
   }
