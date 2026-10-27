@@ -7,6 +7,9 @@ public final class MaxIterations<S extends Solution<S>> implements StoppingCrite
   private final long maxIterations;
 
   public MaxIterations(long maxIterations) {
+    if (maxIterations <= 0) {
+      throw new IllegalArgumentException("maxIterations must be positive.");
+    }
     this.maxIterations = maxIterations;
   }
 
