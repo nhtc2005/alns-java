@@ -17,4 +17,8 @@ public final class MaxIterations<S extends Solution<S>> implements StoppingCrite
   public boolean shouldStop(StoppingContext<S> context) {
     return context.iteration() >= maxIterations;
   }
+
+  public long getMaxIterations() {
+    return maxIterations;
+  }
 }

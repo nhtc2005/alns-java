@@ -71,6 +71,22 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
     temperature = startTemperature;
   }
 
+  public double getStartTemperature() {
+    return startTemperature;
+  }
+
+  public double getEndTemperature() {
+    return endTemperature;
+  }
+
+  public double getStep() {
+    return step;
+  }
+
+  public CoolingMethod getMethod() {
+    return method;
+  }
+
   public double getTemperature() {
     return temperature;
   }
