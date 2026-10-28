@@ -31,6 +31,7 @@ class MaxIterationsTest {
     MaxIterations<TestSolution> criterion = new MaxIterations<>(100);
     when(mockContext.iteration()).thenReturn(99L);
 
+    assertEquals(100, criterion.getMaxIterations());
     assertFalse(criterion.shouldStop(mockContext));
   }
 

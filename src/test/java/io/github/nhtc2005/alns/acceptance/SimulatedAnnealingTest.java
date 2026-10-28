@@ -95,9 +95,14 @@ class SimulatedAnnealingTest {
     when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
+    assertEquals(100.0, sa.getStartTemperature(), 1e-6);
+    assertEquals(1.0, sa.getEndTemperature(), 1e-6);
+    assertEquals(0.5, sa.getStep(), 1e-6);
+    assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
     assertEquals(100.0, sa.getTemperature(), 1e-6);
     assertTrue(sa.shouldAccept(mockContext));
     assertEquals(50.0, sa.getTemperature(), 1e-6);
+    assertEquals(100.0, sa.getStartTemperature(), 1e-6);
   }
 
   @ParameterizedTest
@@ -262,6 +267,10 @@ class SimulatedAnnealingTest {
     when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
+    assertEquals(4.0, sa.getStartTemperature(), 1e-6);
+    assertEquals(1.0, sa.getEndTemperature(), 1e-6);
+    assertEquals(0.5, sa.getStep(), 1e-6);
+    assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
     assertEquals(4.0, sa.getTemperature(), 1e-6);
     assertTrue(sa.shouldAccept(mockContext));
     assertEquals(2.0, sa.getTemperature(), 1e-6);
@@ -273,6 +282,8 @@ class SimulatedAnnealingTest {
         SimulatedAnnealing.autofit(100.0, 0.1, 0.5, 1000, SimulatedAnnealing.CoolingMethod.LINEAR);
 
     assertNotNull(sa);
+    assertEquals(SimulatedAnnealing.CoolingMethod.LINEAR, sa.getMethod());
+    assertEquals(0.01342695, sa.getStep(), 1e-8);
     // startTemp = -(0.1 * 100) / ln(0.5) = -10 / -0.693147 = 14.42695
     assertEquals(14.42695, sa.getTemperature(), 1e-4);
 

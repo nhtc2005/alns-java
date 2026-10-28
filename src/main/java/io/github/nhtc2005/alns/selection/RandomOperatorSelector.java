@@ -24,4 +24,12 @@ public final class RandomOperatorSelector<S extends Solution<S>> implements Oper
         randomGenerator.nextInt(destroyOperatorCount),
         randomGenerator.nextInt(repairOperatorCount));
   }
+
+  public int getDestroyOperatorCount() {
+    return destroyOperatorCount;
+  }
+
+  public int getRepairOperatorCount() {
+    return repairOperatorCount;
+  }
 }

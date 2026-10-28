@@ -43,6 +43,8 @@ class RandomOperatorSelectorTest {
 
     OperatorSelection selection = selector.select(mockContext);
 
+    assertEquals(destroyOperatorCount, selector.getDestroyOperatorCount());
+    assertEquals(repairOperatorCount, selector.getRepairOperatorCount());
     assertNotNull(selection);
     assertEquals(2, selection.destroyOperatorIndex());
     assertEquals(1, selection.repairOperatorIndex());
