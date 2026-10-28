@@ -24,18 +24,29 @@ public final class Alns<S extends Solution<S>> {
   private final List<DestroyOperator<S>> destroyOperators;
   private final List<RepairOperator<S>> repairOperators;
   private final OperatorSelector<S> operatorSelector;
+  private final boolean collectStatistics;
 
   public Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
       List<RepairOperator<S>> repairOperators,
       OperatorSelector<S> operatorSelector) {
+    this(randomGenerator, destroyOperators, repairOperators, operatorSelector, false);
+  }
+
+  public Alns(
+      RandomGenerator randomGenerator,
+      List<DestroyOperator<S>> destroyOperators,
+      List<RepairOperator<S>> repairOperators,
+      OperatorSelector<S> operatorSelector,
+      boolean collectStatistics) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
     this.repairOperators = copyNonEmpty(repairOperators, "repairOperators");
     this.operatorSelector =
         Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
+    this.collectStatistics = collectStatistics;
   }
 
   public static <S extends Solution<S>> Builder<S> builder() {
@@ -62,6 +73,14 @@ public final class Alns<S extends Solution<S>> {
     long iteration = 0;
     S currentSolution = copyOf(initialSolution, "initialSolution.copy() must not return null.");
     S bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
+    AlnsStatistics statistics =
+        collectStatistics
+            ? new AlnsStatistics(destroyOperators.size(), repairOperators.size())
+            : AlnsStatistics.disabled();
+    if (collectStatistics) {
+      statistics.collectInitial(
+          currentSolution.getObjectiveValue(), bestSolution.getObjectiveValue());
+    }
 
     while (!stoppingCriterion.shouldStop(
         new StoppingContext<>(
@@ -70,7 +89,8 @@ public final class Alns<S extends Solution<S>> {
             bestSolution,
             currentSolution,
             randomGenerator))) {
-      long elapsedNanos = System.nanoTime() - startedAt;
+      long iterationStartedAt = System.nanoTime();
+      long elapsedNanos = iterationStartedAt - startedAt;
       OperatorSelection operatorSelection =
           Objects.requireNonNull(
               operatorSelector.select(
@@ -122,10 +142,19 @@ public final class Alns<S extends Solution<S>> {
 
       operatorSelector.update(
           new OperatorSelectionFeedback<>(operatorSelection, candidateSolution, status));
+      if (collectStatistics) {
+        long iterationRuntimeNanos = System.nanoTime() - iterationStartedAt;
+        statistics.collectIteration(
+            operatorSelection,
+            status,
+            currentSolution.getObjectiveValue(),
+            bestSolution.getObjectiveValue(),
+            iterationRuntimeNanos);
+      }
       iteration++;
     }
 
-    return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt);
+    return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
   }
 
   private static <T> List<T> copyNonEmpty(List<T> values, String name) {
@@ -159,6 +188,7 @@ public final class Alns<S extends Solution<S>> {
     private final List<DestroyOperator<S>> destroyOperators = new ArrayList<>();
     private final List<RepairOperator<S>> repairOperators = new ArrayList<>();
     private OperatorSelector<S> operatorSelector;
+    private boolean collectStatistics;
 
     private Builder() {}
 
@@ -186,6 +216,11 @@ public final class Alns<S extends Solution<S>> {
       return this;
     }
 
+    public Builder<S> collectStatistics(boolean collectStatistics) {
+      this.collectStatistics = collectStatistics;
+      return this;
+    }
+
     public Alns<S> build() {
       RandomGenerator configuredRandomGenerator =
           Objects.requireNonNull(randomGenerator, "A randomGenerator is required.");
@@ -203,7 +238,11 @@ public final class Alns<S extends Solution<S>> {
       }
 
       return new Alns<>(
-          configuredRandomGenerator, destroyOperators, repairOperators, configuredOperatorSelector);
+          configuredRandomGenerator,
+          destroyOperators,
+          repairOperators,
+          configuredOperatorSelector,
+          collectStatistics);
     }
   }
 }
