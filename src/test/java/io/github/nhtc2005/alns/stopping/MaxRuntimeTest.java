@@ -13,27 +13,36 @@ class MaxRuntimeTest {
 
   @Test
   void constructor_ShouldThrowException_WhenMaxRuntimeIsNull() {
-    assertThrows(NullPointerException.class, () -> new MaxRuntime<TestSolution>(null));
+    NullPointerException exception =
+        assertThrows(NullPointerException.class, () -> new MaxRuntime<TestSolution>(null));
+
+    assertEquals("maxRuntime must not be null.", exception.getMessage());
   }
 
   @ParameterizedTest
   @ValueSource(longs = {0, -1})
   void constructor_ShouldThrowException_WhenMaxRuntimeIsNonPositive(long maxRuntime) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> new MaxRuntime<TestSolution>(Duration.ofNanos(maxRuntime)));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new MaxRuntime<TestSolution>(Duration.ofNanos(maxRuntime)));
+
+    assertEquals("maxRuntime must be positive.", exception.getMessage());
   }
 
   @Test
   void constructor_ShouldThrowException_WhenMaxRuntimeCannotBeRepresentedInNanoseconds() {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> new MaxRuntime<TestSolution>(Duration.ofSeconds(Long.MAX_VALUE)));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new MaxRuntime<TestSolution>(Duration.ofSeconds(Long.MAX_VALUE)));
+
+    assertEquals("maxRuntime is too large to represent in nanoseconds.", exception.getMessage());
   }
 
   @ParameterizedTest
   @CsvSource({"99, false", "100, true", "101, true"})
-  void shouldStop_ShouldCompareElapsedTimeWithLimit_WhenCalled(
+  void shouldStop_ShouldCompareElapsedTimeWithLimit_WhenCheckingStoppingCondition(
       long elapsedNanos, boolean expected) {
     MaxRuntime<TestSolution> criterion = new MaxRuntime<>(Duration.ofNanos(100));
     StoppingContext<TestSolution> context =

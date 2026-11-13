@@ -1,6 +1,6 @@
 package io.github.nhtc2005.alns.acceptance;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.nhtc2005.alns.util.TestSolution;
 import org.junit.jupiter.params.ParameterizedTest;

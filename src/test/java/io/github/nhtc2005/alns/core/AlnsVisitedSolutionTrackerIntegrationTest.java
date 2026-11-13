@@ -320,9 +320,8 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     assertEquals(3, tracker.getVisitedSolutionCount());
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void solve_ShouldUseProvidedTracker_WhenUsingConstructor(boolean collectStatistics) {
+  @Test
+  void solve_ShouldUseProvidedTracker_WhenUsingConstructor() {
     HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
         new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
     Alns<TestSolution> alns =
@@ -332,7 +331,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             List.of(
                 (solution, randomGenerator) -> new TestSolution(solution.getObjectiveValue() - 1)),
             context -> new OperatorSelection(0, 0),
-            collectStatistics,
+            false,
             tracker);
 
     AlnsResult<TestSolution> result =
@@ -341,7 +340,6 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     assertEquals(3, tracker.getVisitedSolutionCount());
     assertEquals(2, result.totalIterations());
     assertEquals(98.0, result.bestSolution().getObjectiveValue());
-    assertEquals(collectStatistics, result.statistics().isEnabled());
   }
 
   @ParameterizedTest

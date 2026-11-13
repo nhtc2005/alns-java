@@ -2,12 +2,8 @@ package io.github.nhtc2005.alns.stopping;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.nhtc2005.alns.acceptance.HillClimbing;
-import io.github.nhtc2005.alns.core.Alns;
-import io.github.nhtc2005.alns.core.AlnsResult;
 import io.github.nhtc2005.alns.model.Solution;
 import io.github.nhtc2005.alns.util.TestSolution;
-import java.util.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -17,8 +13,11 @@ class NoImprovementTest {
   @ParameterizedTest
   @ValueSource(longs = {0, -1})
   void constructor_ShouldThrowException_WhenMaxIterationsIsNonPositive(long maxIterations) {
-    assertThrows(
-        IllegalArgumentException.class, () -> new NoImprovement<TestSolution>(maxIterations));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class, () -> new NoImprovement<TestSolution>(maxIterations));
+
+    assertEquals("maxIterations must be positive.", exception.getMessage());
   }
 
   @Test
@@ -82,25 +81,6 @@ class NoImprovementTest {
     assertFalse(criterion.shouldStop(context(0, 120.0, 120.0)));
     assertFalse(criterion.shouldStop(context(1, 120.0, 120.0)));
     assertTrue(criterion.shouldStop(context(2, 120.0, 120.0)));
-  }
-
-  @Test
-  void solve_ShouldResetCriterion_WhenSameCriterionIsReused() {
-    Alns<TestSolution> alns =
-        Alns.<TestSolution>builder()
-            .randomGenerator(new Random(1))
-            .addDestroyOperator((solution, randomGenerator) -> solution)
-            .addRepairOperator((solution, randomGenerator) -> solution)
-            .build();
-    NoImprovement<TestSolution> criterion = new NoImprovement<>(3);
-
-    for (int run = 0; run < 2; run++) {
-      AlnsResult<TestSolution> result =
-          alns.solve(new TestSolution(100.0), new HillClimbing<>(), criterion);
-
-      assertEquals(3, result.totalIterations());
-      assertEquals(100.0, result.bestSolution().getObjectiveValue());
-    }
   }
 
   private StoppingContext<TestSolution> context(long iteration, double best, double current) {

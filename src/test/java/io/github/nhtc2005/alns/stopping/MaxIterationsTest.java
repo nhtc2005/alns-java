@@ -10,7 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class MaxIterationsTest {
 
   @ParameterizedTest
-  @ValueSource(longs = {0L, -1L})
+  @ValueSource(longs = {0, -1})
   void constructor_ShouldThrowException_WhenMaxIterationsIsNonPositive(long maxIterations) {
     IllegalArgumentException exception =
         assertThrows(

@@ -8,57 +8,50 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
 
 class AlnsStatisticsTest {
 
-  @ParameterizedTest
-  @EnumSource(SolutionStatus.class)
-  void collectIteration_ShouldTrackHistoriesAndIndependentCounts_WhenFeedbackIsCollected(
-      SolutionStatus status) {
+  @Test
+  void
+      collectIteration_ShouldTrackHistoriesAndCountsPerStatusAndOperator_WhenFeedbackIsCollected() {
     AlnsStatistics statistics = new AlnsStatistics(2, 3);
     statistics.collectInitial(100.0, 100.0);
-    statistics.collectIteration(new OperatorSelection(1, 0), status, 120.0, 100.0, 5);
-    statistics.collectIteration(new OperatorSelection(0, 2), status, 110.0, 100.0, 7);
-    statistics.collectIteration(new OperatorSelection(1, 2), status, 80.0, 80.0, 9);
+    statistics.collectIteration(new OperatorSelection(1, 0), SolutionStatus.BEST, 80.0, 80.0, 5);
+    statistics.collectIteration(
+        new OperatorSelection(0, 2), SolutionStatus.REJECTED, 80.0, 80.0, 7);
+    statistics.collectIteration(new OperatorSelection(1, 2), SolutionStatus.BETTER, 85.0, 80.0, 9);
+    statistics.collectIteration(
+        new OperatorSelection(0, 0), SolutionStatus.ACCEPTED, 90.0, 80.0, 11);
+    statistics.collectIteration(new OperatorSelection(1, 2), SolutionStatus.BEST, 70.0, 70.0, 13);
 
     assertTrue(statistics.isEnabled());
-    assertEquals(List.of(100.0, 120.0, 110.0, 80.0), statistics.getCurrentObjectiveValues());
-    assertEquals(List.of(100.0, 100.0, 100.0, 80.0), statistics.getBestObjectiveValues());
-    assertEquals(List.of(5L, 7L, 9L), statistics.getIterationRuntimesNanos());
-    for (SolutionStatus outcome : SolutionStatus.values()) {
-      assertEquals(outcome == status ? 3L : 0L, statistics.getStatusCount(outcome));
-      assertEquals(outcome == status ? 1L : 0L, statistics.getDestroyOperatorCount(0, outcome));
-      assertEquals(outcome == status ? 2L : 0L, statistics.getDestroyOperatorCount(1, outcome));
-      assertEquals(outcome == status ? 1L : 0L, statistics.getRepairOperatorCount(0, outcome));
-      assertEquals(0L, statistics.getRepairOperatorCount(1, outcome));
-      assertEquals(outcome == status ? 2L : 0L, statistics.getRepairOperatorCount(2, outcome));
+    assertEquals(
+        List.of(100.0, 80.0, 80.0, 85.0, 90.0, 70.0), statistics.getCurrentObjectiveValues());
+    assertEquals(List.of(100.0, 80.0, 80.0, 80.0, 80.0, 70.0), statistics.getBestObjectiveValues());
+    assertEquals(List.of(5L, 7L, 9L, 11L, 13L), statistics.getIterationRuntimesNanos());
+
+    // Columns follow SolutionStatus order: BEST, BETTER, ACCEPTED, REJECTED.
+    long[] expectedStatusCounts = {2, 1, 1, 1};
+    long[][] expectedDestroyOperatorCounts = {{0, 0, 1, 1}, {2, 1, 0, 0}};
+    long[][] expectedRepairOperatorCounts = {{1, 0, 1, 0}, {0, 0, 0, 0}, {1, 1, 0, 1}};
+    for (SolutionStatus status : SolutionStatus.values()) {
+      int column = status.ordinal();
+      assertEquals(expectedStatusCounts[column], statistics.getStatusCount(status));
+      for (int index = 0; index < expectedDestroyOperatorCounts.length; index++) {
+        assertEquals(
+            expectedDestroyOperatorCounts[index][column],
+            statistics.getDestroyOperatorCount(index, status));
+      }
+      for (int index = 0; index < expectedRepairOperatorCounts.length; index++) {
+        assertEquals(
+            expectedRepairOperatorCounts[index][column],
+            statistics.getRepairOperatorCount(index, status));
+      }
     }
   }
 
   @Test
-  void collectIteration_ShouldSeparateOutcomeCounts_WhenDifferentOutcomesAreCollected() {
-    AlnsStatistics statistics = new AlnsStatistics(2, 2);
-    statistics.collectInitial(100.0, 100.0);
-    statistics.collectIteration(new OperatorSelection(0, 1), SolutionStatus.BEST, 80.0, 80.0, 1);
-    statistics.collectIteration(
-        new OperatorSelection(1, 0), SolutionStatus.REJECTED, 80.0, 80.0, 2);
-    statistics.collectIteration(new OperatorSelection(0, 1), SolutionStatus.BETTER, 85.0, 80.0, 3);
-
-    assertEquals(1L, statistics.getStatusCount(SolutionStatus.BEST));
-    assertEquals(1L, statistics.getStatusCount(SolutionStatus.BETTER));
-    assertEquals(1L, statistics.getStatusCount(SolutionStatus.REJECTED));
-    assertEquals(0L, statistics.getStatusCount(SolutionStatus.ACCEPTED));
-    assertEquals(1L, statistics.getDestroyOperatorCount(0, SolutionStatus.BEST));
-    assertEquals(1L, statistics.getDestroyOperatorCount(0, SolutionStatus.BETTER));
-    assertEquals(0L, statistics.getDestroyOperatorCount(0, SolutionStatus.REJECTED));
-    assertEquals(1L, statistics.getDestroyOperatorCount(1, SolutionStatus.REJECTED));
-    assertEquals(1L, statistics.getRepairOperatorCount(1, SolutionStatus.BEST));
-    assertEquals(1L, statistics.getRepairOperatorCount(0, SolutionStatus.REJECTED));
-  }
-
-  @Test
-  void getHistories_ShouldReturnImmutableSnapshots_WhenCollectionContinues() {
+  void getObjectiveValuesAndRuntimes_ShouldReturnImmutableSnapshots_WhenCollectionContinues() {
     AlnsStatistics statistics = new AlnsStatistics(1, 1);
     statistics.collectInitial(100.0, 100.0);
     statistics.collectIteration(new OperatorSelection(0, 0), SolutionStatus.BEST, 80.0, 80.0, 5);
@@ -102,7 +95,7 @@ class AlnsStatisticsTest {
 
   @ParameterizedTest
   @CsvSource({"-1, -1", "2, 3"})
-  void getOperatorCount_ShouldThrowException_WhenOperatorIndexIsInvalid(
+  void getDestroyAndRepairOperatorCount_ShouldThrowException_WhenOperatorIndexIsInvalid(
       int destroyOperatorIndex, int repairOperatorIndex) {
     AlnsStatistics statistics = new AlnsStatistics(2, 3);
 
@@ -115,11 +108,22 @@ class AlnsStatisticsTest {
   }
 
   @Test
-  void getCount_ShouldThrowException_WhenStatusIsNull() {
+  void getStatusAndOperatorCount_ShouldThrowException_WhenStatusIsNull() {
     AlnsStatistics statistics = new AlnsStatistics(1, 1);
 
-    assertThrows(NullPointerException.class, () -> statistics.getStatusCount(null));
-    assertThrows(NullPointerException.class, () -> statistics.getDestroyOperatorCount(0, null));
-    assertThrows(NullPointerException.class, () -> statistics.getRepairOperatorCount(0, null));
+    NullPointerException statusException =
+        assertThrows(NullPointerException.class, () -> statistics.getStatusCount(null));
+
+    assertEquals("status must not be null.", statusException.getMessage());
+
+    NullPointerException destroyException =
+        assertThrows(NullPointerException.class, () -> statistics.getDestroyOperatorCount(0, null));
+
+    assertEquals("status must not be null.", destroyException.getMessage());
+
+    NullPointerException repairException =
+        assertThrows(NullPointerException.class, () -> statistics.getRepairOperatorCount(0, null));
+
+    assertEquals("status must not be null.", repairException.getMessage());
   }
 }

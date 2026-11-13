@@ -1,10 +1,10 @@
 package io.github.nhtc2005.alns.core;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import io.github.nhtc2005.alns.acceptance.AcceptanceCriterion;
+import io.github.nhtc2005.alns.acceptance.HillClimbing;
 import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
 import io.github.nhtc2005.alns.operator.RepairOperator;
@@ -15,6 +15,9 @@ import io.github.nhtc2005.alns.selection.OperatorSelector;
 import io.github.nhtc2005.alns.selection.RandomOperatorSelector;
 import io.github.nhtc2005.alns.selection.RouletteWheelOperatorSelector;
 import io.github.nhtc2005.alns.selection.SegmentedRouletteWheelOperatorSelector;
+import io.github.nhtc2005.alns.stopping.AnyOfStoppingCriterion;
+import io.github.nhtc2005.alns.stopping.MaxIterations;
+import io.github.nhtc2005.alns.stopping.NoImprovement;
 import io.github.nhtc2005.alns.stopping.StoppingCriterion;
 import io.github.nhtc2005.alns.util.TestSolution;
 import java.util.List;
@@ -60,24 +63,27 @@ class AlnsTest {
 
     NullPointerException randomGeneratorException =
         assertThrows(NullPointerException.class, builder::build);
+
     assertEquals("A randomGenerator is required.", randomGeneratorException.getMessage());
 
     builder.randomGenerator(mockRandomGenerator);
     IllegalStateException destroyException =
         assertThrows(IllegalStateException.class, builder::build);
+
     assertEquals("At least one destroy operator is required.", destroyException.getMessage());
 
     builder.addDestroyOperator(mockDestroyOperator);
     IllegalStateException repairException =
         assertThrows(IllegalStateException.class, builder::build);
+
     assertEquals("At least one repair operator is required.", repairException.getMessage());
   }
 
   @Test
   void builder_ShouldUseDefaultSelector_WhenSelectorNotSet() {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution candidateSolution = new TestSolution(50.0, true);
+    TestSolution initialSolution = new TestSolution(100.0);
+    TestSolution partialSolution = new TestSolution(100.0);
+    TestSolution candidateSolution = new TestSolution(50.0);
     Alns<TestSolution> alnsWithDefaultSelector =
         Alns.<TestSolution>builder()
             .randomGenerator(mockRandomGenerator)
@@ -108,10 +114,12 @@ class AlnsTest {
 
     NullPointerException destroyException =
         assertThrows(NullPointerException.class, () -> builder.addDestroyOperator(null));
+
     assertEquals("destroyOperator must not be null.", destroyException.getMessage());
 
     NullPointerException repairException =
         assertThrows(NullPointerException.class, () -> builder.addRepairOperator(null));
+
     assertEquals("repairOperator must not be null.", repairException.getMessage());
   }
 
@@ -129,6 +137,7 @@ class AlnsTest {
                     emptyDestroyOperators,
                     validRepairOperators,
                     mockOperatorSelector));
+
     assertEquals("destroyOperators must not be empty.", destroyException.getMessage());
 
     List<DestroyOperator<TestSolution>> validDestroyOperators = List.of(mockDestroyOperator);
@@ -143,7 +152,74 @@ class AlnsTest {
                     validDestroyOperators,
                     emptyRepairOperators,
                     mockOperatorSelector));
+
     assertEquals("repairOperators must not be empty.", repairException.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({"1, 2", "3, 2", "2, 1", "2, 3"})
+  void constructor_ShouldThrowException_WhenSelectorOperatorCountsMismatch(
+      int destroys, int repairs) {
+    String expectedMessage =
+        "Selector operator counts must match the configured destroy and repair operator counts.";
+    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(destroys, repairs)) {
+      IllegalArgumentException constructorException =
+          assertThrows(
+              IllegalArgumentException.class,
+              () ->
+                  new Alns<>(
+                      new Random(1),
+                      List.of(mockDestroyOperator, mockDestroyOperator),
+                      List.of(mockRepairOperator, mockRepairOperator),
+                      selector));
+
+      assertEquals(expectedMessage, constructorException.getMessage());
+
+      IllegalArgumentException builderException =
+          assertThrows(
+              IllegalArgumentException.class,
+              () -> operatorCountsBuilder().operatorSelector(selector).build());
+
+      assertEquals(expectedMessage, builderException.getMessage());
+    }
+  }
+
+  @Test
+  void constructor_ShouldNotThrowException_WhenSelectorOperatorCountsMatch() {
+    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
+      assertDoesNotThrow(
+          () ->
+              new Alns<>(
+                  new Random(1),
+                  List.of(mockDestroyOperator, mockDestroyOperator),
+                  List.of(mockRepairOperator, mockRepairOperator),
+                  selector));
+      assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
+    }
+  }
+
+  @Test
+  void constructor_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
+    OperatorSelector<TestSolution> selector =
+        new OperatorSelector<>() {
+          @Override
+          public OperatorSelection select(OperatorSelectionContext<TestSolution> context) {
+            return new OperatorSelection(0, 0);
+          }
+
+          @Override
+          public void validateOperatorCounts(int destroyCount, int repairCount) {
+            assertEquals(2, destroyCount);
+            assertEquals(2, repairCount);
+            throw new IllegalArgumentException("custom validation");
+          }
+        };
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> operatorCountsBuilder().operatorSelector(selector).build());
+
+    assertEquals("custom validation", exception.getMessage());
   }
 
   @Test
@@ -181,7 +257,6 @@ class AlnsTest {
     AlnsResult<TestSolution> result =
         alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
 
-    assertNotNull(result);
     assertEquals(expectedBestObjective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
     verify(mockOperatorSelector).reset();
@@ -200,10 +275,10 @@ class AlnsTest {
 
   @Test
   void solve_ShouldSetBetterStatus_WhenCandidateIsBetterThanCurrent() {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution worseCandidateSolution = new TestSolution(120.0, true);
-    TestSolution betterCandidateSolution = new TestSolution(110.0, true);
+    TestSolution initialSolution = new TestSolution(100.0);
+    TestSolution partialSolution = new TestSolution(100.0);
+    TestSolution worseCandidateSolution = new TestSolution(120.0);
+    TestSolution betterCandidateSolution = new TestSolution(110.0);
 
     when(mockStoppingCriterion.shouldStop(any()))
         .thenReturn(false)
@@ -222,7 +297,6 @@ class AlnsTest {
     AlnsResult<TestSolution> result =
         alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
 
-    assertNotNull(result);
     assertEquals(100.0, result.bestSolution().getObjectiveValue());
     assertEquals(2, result.totalIterations());
 
@@ -240,7 +314,7 @@ class AlnsTest {
   @CsvSource({"-1, 0", "1, 0", "0, -1", "0, 1"})
   void solve_ShouldThrowException_WhenOperatorIndexIsOutOfBounds(
       int destroyOperatorIndex, int repairOperatorIndex) {
-    TestSolution initialSolution = new TestSolution(100.0, true);
+    TestSolution initialSolution = new TestSolution(100.0);
     when(mockOperatorSelector.select(any()))
         .thenReturn(new OperatorSelection(destroyOperatorIndex, repairOperatorIndex));
 
@@ -254,7 +328,7 @@ class AlnsTest {
 
   @ParameterizedTest
   @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
-  void solve_ShouldRejectInitialObjectiveBeforeReset_WhenObjectiveIsNonFinite(double objective) {
+  void solve_ShouldThrowExceptionBeforeReset_WhenInitialObjectiveIsNonFinite(double objective) {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
@@ -280,7 +354,7 @@ class AlnsTest {
     "Infinity, false",
     "-Infinity, false"
   })
-  void solve_ShouldRejectCandidateObjectiveBeforeAcceptance_WhenObjectiveIsNonFinite(
+  void solve_ShouldThrowExceptionBeforeAcceptance_WhenCandidateObjectiveIsNonFinite(
       double objective, boolean feasible) {
     setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
 
@@ -310,76 +384,83 @@ class AlnsTest {
     verify(mockAcceptanceCriterion).shouldAccept(any());
   }
 
+  @Test
+  void solve_ShouldResetSelector_WhenSameSelectorIsReused() {
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector =
+        new SegmentedRouletteWheelOperatorSelector<>(1, 1, new double[] {7, 3, 2, 0}, 0.5, 2);
+    Alns<TestSolution> reusedAlns =
+        Alns.<TestSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator(
+                (solution, randomGenerator) -> new TestSolution(solution.getObjectiveValue() + 1))
+            .operatorSelector(selector)
+            .build();
+
+    for (int run = 0; run < 2; run++) {
+      AlnsResult<TestSolution> result =
+          reusedAlns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(3));
+
+      assertEquals(3, result.totalIterations());
+      assertArrayEquals(new double[] {2.5}, selector.getDestroyOperatorWeights());
+      assertArrayEquals(new double[] {2.5}, selector.getRepairOperatorWeights());
+      assertArrayEquals(new double[] {2}, selector.getDestroyOperatorSegmentScores());
+      assertArrayEquals(new double[] {2}, selector.getRepairOperatorSegmentScores());
+      assertEquals(1, selector.getIterationsInSegment());
+    }
+  }
+
+  @Test
+  void solve_ShouldResetStoppingCriterion_WhenSameCriterionIsReused() {
+    Alns<TestSolution> reusedAlns =
+        Alns.<TestSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator((solution, randomGenerator) -> solution)
+            .build();
+    NoImprovement<TestSolution> criterion = new NoImprovement<>(3);
+
+    for (int run = 0; run < 2; run++) {
+      AlnsResult<TestSolution> result =
+          reusedAlns.solve(new TestSolution(100.0), new HillClimbing<>(), criterion);
+
+      assertEquals(3, result.totalIterations());
+      assertEquals(100.0, result.bestSolution().getObjectiveValue());
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({"2, 2, 2", "100, 4, 3"})
+  void solve_ShouldResetComposedStoppingCriteria_WhenSameCriterionIsReused(
+      long maxIterations, long expectedFirstIterations, long expectedSecondIterations) {
+    Alns<TestSolution> reusedAlns =
+        Alns.<TestSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator(
+                (solution, randomGenerator) ->
+                    solution.getObjectiveValue() == 100.0 ? new TestSolution(90.0) : solution)
+            .build();
+    AnyOfStoppingCriterion<TestSolution> criterion =
+        new AnyOfStoppingCriterion<TestSolution>(
+            List.of(new MaxIterations<>(maxIterations), new NoImprovement<>(3)));
+
+    AlnsResult<TestSolution> firstResult =
+        reusedAlns.solve(new TestSolution(100.0), new HillClimbing<>(), criterion);
+    AlnsResult<TestSolution> secondResult =
+        reusedAlns.solve(new TestSolution(200.0), new HillClimbing<>(), criterion);
+
+    assertEquals(expectedFirstIterations, firstResult.totalIterations());
+    assertEquals(90.0, firstResult.bestSolution().getObjectiveValue());
+    assertEquals(expectedSecondIterations, secondResult.totalIterations());
+    assertEquals(200.0, secondResult.bestSolution().getObjectiveValue());
+  }
+
   private void setupBasicMocks(TestSolution partialSolution, TestSolution candidateSolution) {
     when(mockStoppingCriterion.shouldStop(any())).thenReturn(false).thenReturn(true);
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockDestroyOperator.apply(any(), any())).thenReturn(partialSolution);
     when(mockRepairOperator.apply(any(), any())).thenReturn(candidateSolution);
-  }
-
-  @ParameterizedTest
-  @CsvSource({"1, 2", "3, 2", "2, 1", "2, 3"})
-  void constructor_ShouldRejectConfiguration_WhenSelectorOperatorCountsMismatch(
-      int destroys, int repairs) {
-    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(destroys, repairs)) {
-      assertThrows(
-          IllegalArgumentException.class,
-          () ->
-              new Alns<>(
-                  new Random(1),
-                  List.of(mockDestroyOperator, mockDestroyOperator),
-                  List.of(mockRepairOperator, mockRepairOperator),
-                  selector));
-      assertThrows(
-          IllegalArgumentException.class,
-          () -> operatorCountsBuilder().operatorSelector(selector).build());
-    }
-  }
-
-  @Test
-  void constructor_ShouldAcceptConfiguration_WhenSelectorOperatorCountsMatch() {
-    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
-      assertDoesNotThrow(
-          () ->
-              new Alns<>(
-                  new Random(1),
-                  List.of(mockDestroyOperator, mockDestroyOperator),
-                  List.of(mockRepairOperator, mockRepairOperator),
-                  selector));
-      assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
-    }
-  }
-
-  @Test
-  void constructor_ShouldAcceptSelector_WhenUsingCustomLambda() {
-    assertDoesNotThrow(
-        () ->
-            operatorCountsBuilder()
-                .operatorSelector(context -> new OperatorSelection(0, 0))
-                .build());
-  }
-
-  @Test
-  void constructor_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
-    OperatorSelector<TestSolution> selector =
-        new OperatorSelector<>() {
-          @Override
-          public OperatorSelection select(OperatorSelectionContext<TestSolution> context) {
-            return new OperatorSelection(0, 0);
-          }
-
-          @Override
-          public void validateOperatorCounts(int destroyCount, int repairCount) {
-            assertEquals(2, destroyCount);
-            assertEquals(2, repairCount);
-            throw new IllegalArgumentException("custom validation");
-          }
-        };
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> operatorCountsBuilder().operatorSelector(selector).build());
-    assertEquals("custom validation", exception.getMessage());
   }
 
   private Alns.Builder<TestSolution> operatorCountsBuilder() {

@@ -1,7 +1,7 @@
 package io.github.nhtc2005.alns.selection;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import io.github.nhtc2005.alns.util.TestSolution;
 import java.util.random.RandomGenerator;
@@ -18,7 +18,7 @@ class RandomOperatorSelectorTest {
   @Mock private RandomGenerator mockRandomGenerator;
 
   @ParameterizedTest
-  @CsvSource({"0, 5", "-1, 5", "5, 0", "5, -1", "0, 0"})
+  @CsvSource({"0, 5", "-1, 5", "5, 0", "5, -1"})
   void constructor_ShouldThrowException_WhenOperatorCountsAreInvalid(
       int destroyOperatorCount, int repairOperatorCount) {
     IllegalArgumentException exception =
@@ -30,7 +30,7 @@ class RandomOperatorSelectorTest {
   }
 
   @Test
-  void select_ShouldReturnValidOperatorSelection_WhenCalled() {
+  void select_ShouldReturnRandomOperatorIndices_WhenRandomIndicesAreGenerated() {
     int destroyOperatorCount = 4;
     int repairOperatorCount = 3;
     RandomOperatorSelector<TestSolution> selector =
