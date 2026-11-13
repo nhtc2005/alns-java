@@ -57,6 +57,15 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   }
 
   @Override
+  public void validateOperatorCounts(int destroyOperatorCount, int repairOperatorCount) {
+    if (destroyOperatorCount != getDestroyOperatorCount()
+        || repairOperatorCount != getRepairOperatorCount()) {
+      throw new IllegalArgumentException(
+          "Selector operator counts must match the configured destroy and repair operator counts.");
+    }
+  }
+
+  @Override
   public OperatorSelection select(OperatorSelectionContext<S> context) {
     return new OperatorSelection(
         select(destroyOperatorWeights, context.randomGenerator()),

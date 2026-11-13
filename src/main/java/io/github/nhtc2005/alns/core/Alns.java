@@ -67,6 +67,8 @@ public final class Alns<S extends Solution<S>> {
     this.collectStatistics = collectStatistics;
     this.visitedSolutionTracker =
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
+    this.operatorSelector.validateOperatorCounts(
+        this.destroyOperators.size(), this.repairOperators.size());
   }
 
   public static <S extends Solution<S>> Builder<S> builder() {

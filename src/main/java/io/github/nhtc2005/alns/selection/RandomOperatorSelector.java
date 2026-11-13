@@ -18,6 +18,15 @@ public final class RandomOperatorSelector<S extends Solution<S>> implements Oper
   }
 
   @Override
+  public void validateOperatorCounts(int destroyOperatorCount, int repairOperatorCount) {
+    if (destroyOperatorCount != getDestroyOperatorCount()
+        || repairOperatorCount != getRepairOperatorCount()) {
+      throw new IllegalArgumentException(
+          "Selector operator counts must match the configured destroy and repair operator counts.");
+    }
+  }
+
+  @Override
   public OperatorSelection select(OperatorSelectionContext<S> context) {
     RandomGenerator randomGenerator = context.randomGenerator();
     return new OperatorSelection(

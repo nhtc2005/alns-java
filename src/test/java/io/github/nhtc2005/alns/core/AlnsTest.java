@@ -46,6 +46,7 @@ class AlnsTest {
             .addRepairOperator(mockRepairOperator)
             .operatorSelector(mockOperatorSelector)
             .build();
+    clearInvocations(mockOperatorSelector);
   }
 
   @Test
