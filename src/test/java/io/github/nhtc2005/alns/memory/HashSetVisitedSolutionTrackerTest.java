@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,19 +30,12 @@ class HashSetVisitedSolutionTrackerTest {
   }
 
   @Test
-  void constructor_ShouldStartWithNoVisitedSolutions_WhenCreated() {
-    HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
-        new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
-
-    assertEquals(0, tracker.getVisitedSolutionCount());
-  }
-
-  @Test
   void recordIfNew_ShouldCountUniqueKeys_WhenSolutionsAreRecordedRepeatedly() {
     HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
         new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
     TestSolution solution = new TestSolution(100.0);
 
+    assertEquals(0, tracker.getVisitedSolutionCount());
     assertTrue(tracker.recordIfNew(solution));
     assertEquals(1, tracker.getVisitedSolutionCount());
     assertFalse(tracker.recordIfNew(solution));
@@ -50,28 +45,17 @@ class HashSetVisitedSolutionTrackerTest {
     assertEquals(2, tracker.getVisitedSolutionCount());
   }
 
-  @Test
-  void recordIfNew_ShouldUseStructuralKeys_WhenDifferentSolutionsHaveSameObjectiveValue() {
+  @ParameterizedTest
+  @CsvSource({"1, 2, 2, 1, false", "0, 31, 1, 0, true"})
+  void recordIfNew_ShouldDistinguishStructuralKeys_WhenSolutionsHaveEqualObjectiveValues(
+      int firstStart, int firstEnd, int secondStart, int secondEnd, boolean hashCollision) {
     HashSetVisitedSolutionTracker<List<Integer>, RouteSolution> tracker =
         new HashSetVisitedSolutionTracker<>(solution -> List.copyOf(solution.route));
-    RouteSolution firstSolution = new RouteSolution(List.of(1, 2));
-    RouteSolution secondSolution = new RouteSolution(List.of(2, 1));
+    RouteSolution firstSolution = new RouteSolution(List.of(firstStart, firstEnd));
+    RouteSolution secondSolution = new RouteSolution(List.of(secondStart, secondEnd));
 
     assertEquals(firstSolution.getObjectiveValue(), secondSolution.getObjectiveValue());
-    assertTrue(tracker.recordIfNew(firstSolution));
-    assertTrue(tracker.recordIfNew(secondSolution));
-    assertFalse(tracker.recordIfNew(firstSolution.copy()));
-    assertEquals(2, tracker.getVisitedSolutionCount());
-  }
-
-  @Test
-  void recordIfNew_ShouldCompareKeysByEquality_WhenHashCodesCollide() {
-    HashSetVisitedSolutionTracker<List<Integer>, RouteSolution> tracker =
-        new HashSetVisitedSolutionTracker<>(solution -> List.copyOf(solution.route));
-    RouteSolution firstSolution = new RouteSolution(List.of(0, 31));
-    RouteSolution secondSolution = new RouteSolution(List.of(1, 0));
-
-    assertEquals(firstSolution.route.hashCode(), secondSolution.route.hashCode());
+    assertEquals(hashCollision, firstSolution.route.hashCode() == secondSolution.route.hashCode());
     assertTrue(tracker.recordIfNew(firstSolution));
     assertTrue(tracker.recordIfNew(secondSolution));
     assertFalse(tracker.recordIfNew(firstSolution.copy()));

@@ -137,8 +137,10 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     assertEquals(90.0, result.bestSolution().getObjectiveValue());
   }
 
-  @Test
-  void solve_ShouldRunAcceptanceAndSelectorFeedback_WhenTrackerReportsDuplicate() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void solve_ShouldSuppressRewardAndPreserveAcceptance_WhenCandidateHasEqualObjective(
+      boolean isNew) {
     TestSolution candidateSolution = new TestSolution(100.0);
     Alns<TestSolution> alns =
         Alns.<TestSolution>builder()
@@ -151,6 +153,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .build();
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
+    when(mockVisitedSolutionTracker.recordIfNew(any())).thenReturn(isNew);
 
     AlnsResult<TestSolution> result =
         alns.solve(new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(3));
@@ -260,33 +263,6 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     assertEquals(3, result.statistics().getStatusCount(SolutionStatus.BETTER));
     assertEquals(2, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
     assertEquals(0, result.statistics().getStatusCount(SolutionStatus.REJECTED));
-  }
-
-  @Test
-  void solve_ShouldSuppressReward_WhenNewAcceptedSolutionHasEqualCost() {
-    TestSolution candidateSolution = new TestSolution(100.0);
-    Alns<TestSolution> alns =
-        Alns.<TestSolution>builder()
-            .randomGenerator(new Random(1))
-            .addDestroyOperator((solution, randomGenerator) -> solution)
-            .addRepairOperator((solution, randomGenerator) -> candidateSolution)
-            .operatorSelector(mockOperatorSelector)
-            .visitedSolutionTracker(mockVisitedSolutionTracker)
-            .collectStatistics(true)
-            .build();
-    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
-    when(mockVisitedSolutionTracker.recordIfNew(any())).thenReturn(true);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1));
-
-    verify(mockVisitedSolutionTracker).recordIfNew(same(candidateSolution));
-    verify(mockOperatorSelector)
-        .update(
-            new OperatorSelectionFeedback<>(
-                new OperatorSelection(0, 0), candidateSolution, SolutionStatus.ACCEPTED, false));
-    assertEquals(1, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
   }
 
   @Test

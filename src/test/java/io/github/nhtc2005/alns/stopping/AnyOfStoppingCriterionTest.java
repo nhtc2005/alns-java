@@ -45,61 +45,43 @@ class AnyOfStoppingCriterionTest {
   }
 
   @Test
-  void constructor_ShouldCopyCriteria_WhenCallerModifiesOriginalList() {
-    List<StoppingCriterion<TestSolution>> criteria = new ArrayList<>(List.of(mockFirstCriterion));
+  void getCriteria_ShouldPreserveCriteria_WhenCallerModifiesInputOrReturnedList() {
+    List<StoppingCriterion<TestSolution>> criteria =
+        new ArrayList<>(List.of(mockFirstCriterion, mockSecondCriterion));
     AnyOfStoppingCriterion<TestSolution> criterion = new AnyOfStoppingCriterion<>(criteria);
     criteria.clear();
-    when(mockFirstCriterion.shouldStop(mockContext)).thenReturn(true);
-
-    assertTrue(criterion.shouldStop(mockContext));
-    verify(mockFirstCriterion).shouldStop(mockContext);
-  }
-
-  @Test
-  void shouldStop_ShouldReturnFalse_WhenNoCriterionMatches() {
-    AnyOfStoppingCriterion<TestSolution> criterion =
-        new AnyOfStoppingCriterion<>(List.of(mockFirstCriterion, mockSecondCriterion));
-
-    assertFalse(criterion.shouldStop(mockContext));
-
-    InOrder inOrder = inOrder(mockFirstCriterion, mockSecondCriterion);
-    inOrder.verify(mockFirstCriterion).shouldStop(mockContext);
-    inOrder.verify(mockSecondCriterion).shouldStop(mockContext);
-  }
-
-  @Test
-  void shouldStop_ShouldSkipRemainingCriteria_WhenFirstCriterionMatches() {
-    AnyOfStoppingCriterion<TestSolution> criterion =
-        new AnyOfStoppingCriterion<>(List.of(mockFirstCriterion, mockSecondCriterion));
-    when(mockFirstCriterion.shouldStop(mockContext)).thenReturn(true);
-
-    assertTrue(criterion.shouldStop(mockContext));
-    verify(mockFirstCriterion).shouldStop(mockContext);
-    verifyNoInteractions(mockSecondCriterion);
-  }
-
-  @Test
-  void shouldStop_ShouldReturnTrue_WhenLaterCriterionMatches() {
-    AnyOfStoppingCriterion<TestSolution> criterion =
-        new AnyOfStoppingCriterion<>(List.of(mockFirstCriterion, mockSecondCriterion));
     when(mockSecondCriterion.shouldStop(mockContext)).thenReturn(true);
 
+    assertEquals(List.of(mockFirstCriterion, mockSecondCriterion), criterion.getCriteria());
     assertTrue(criterion.shouldStop(mockContext));
-
-    InOrder inOrder = inOrder(mockFirstCriterion, mockSecondCriterion);
-    inOrder.verify(mockFirstCriterion).shouldStop(mockContext);
-    inOrder.verify(mockSecondCriterion).shouldStop(mockContext);
-  }
-
-  @Test
-  void getCriteria_ShouldRejectStructuralChanges_WhenCallerModifiesList() {
-    AnyOfStoppingCriterion<TestSolution> criterion =
-        new AnyOfStoppingCriterion<>(List.of(mockFirstCriterion, mockSecondCriterion));
-    when(mockSecondCriterion.shouldStop(mockContext)).thenReturn(true);
+    verify(mockFirstCriterion).shouldStop(mockContext);
+    verify(mockSecondCriterion).shouldStop(mockContext);
 
     assertThrows(UnsupportedOperationException.class, () -> criterion.getCriteria().clear());
     assertEquals(List.of(mockFirstCriterion, mockSecondCriterion), criterion.getCriteria());
     assertTrue(criterion.shouldStop(mockContext));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false, false", "true, false", "false, true"})
+  void shouldStop_ShouldEvaluateInOrderAndShortCircuit_WhenCheckingCriteria(
+      boolean firstMatches, boolean secondMatches) {
+    AnyOfStoppingCriterion<TestSolution> criterion =
+        new AnyOfStoppingCriterion<>(List.of(mockFirstCriterion, mockSecondCriterion));
+    when(mockFirstCriterion.shouldStop(mockContext)).thenReturn(firstMatches);
+    if (!firstMatches) {
+      when(mockSecondCriterion.shouldStop(mockContext)).thenReturn(secondMatches);
+    }
+
+    assertEquals(firstMatches || secondMatches, criterion.shouldStop(mockContext));
+    InOrder order = inOrder(mockFirstCriterion, mockSecondCriterion);
+    order.verify(mockFirstCriterion).shouldStop(mockContext);
+    if (firstMatches) {
+      verifyNoInteractions(mockSecondCriterion);
+    } else {
+      order.verify(mockSecondCriterion).shouldStop(mockContext);
+    }
+    verifyNoMoreInteractions(mockFirstCriterion, mockSecondCriterion);
   }
 
   @Test

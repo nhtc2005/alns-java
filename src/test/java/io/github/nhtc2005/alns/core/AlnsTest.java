@@ -9,11 +9,16 @@ import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
 import io.github.nhtc2005.alns.operator.RepairOperator;
 import io.github.nhtc2005.alns.selection.OperatorSelection;
+import io.github.nhtc2005.alns.selection.OperatorSelectionContext;
 import io.github.nhtc2005.alns.selection.OperatorSelectionFeedback;
 import io.github.nhtc2005.alns.selection.OperatorSelector;
+import io.github.nhtc2005.alns.selection.RandomOperatorSelector;
+import io.github.nhtc2005.alns.selection.RouletteWheelOperatorSelector;
+import io.github.nhtc2005.alns.selection.SegmentedRouletteWheelOperatorSelector;
 import io.github.nhtc2005.alns.stopping.StoppingCriterion;
 import io.github.nhtc2005.alns.util.TestSolution;
 import java.util.List;
+import java.util.Random;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -154,32 +159,43 @@ class AlnsTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void solve_ShouldUpdateBestSolution_WhenCandidateIsBest(boolean isAccepted) {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution candidateSolution = new TestSolution(50.0, true);
-
-    setupBasicMocks(partialSolution, candidateSolution);
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(isAccepted);
+  @CsvSource({
+    "50.0, true, true, BEST, 50.0",
+    "50.0, true, false, BEST, 50.0",
+    "120.0, true, true, ACCEPTED, 100.0",
+    "120.0, true, false, REJECTED, 100.0",
+    "40.0, false, true, REJECTED, 100.0",
+    "40.0, false, false, REJECTED, 100.0"
+  })
+  void solve_ShouldClassifyCandidateAndUpdateBest_WhenCandidateIsEvaluated(
+      double candidateObjective,
+      boolean feasible,
+      boolean accepted,
+      SolutionStatus expectedStatus,
+      double expectedBestObjective) {
+    TestSolution initialSolution = new TestSolution(100.0);
+    TestSolution candidateSolution = new TestSolution(candidateObjective, feasible);
+    setupBasicMocks(new TestSolution(100.0), candidateSolution);
+    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(accepted);
 
     AlnsResult<TestSolution> result =
         alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
 
     assertNotNull(result);
-    assertEquals(50.0, result.bestSolution().getObjectiveValue());
+    assertEquals(expectedBestObjective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
-
     verify(mockOperatorSelector).reset();
     verify(mockAcceptanceCriterion).reset();
     verify(mockStoppingCriterion).reset();
     verify(mockAcceptanceCriterion).shouldAccept(any());
 
-    @SuppressWarnings("unchecked")
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
-        ArgumentCaptor.forClass(OperatorSelectionFeedback.class);
+        ArgumentCaptor.captor();
     verify(mockOperatorSelector).update(feedbackCaptor.capture());
-    assertEquals(SolutionStatus.BEST, feedbackCaptor.getValue().status());
+    assertEquals(expectedStatus, feedbackCaptor.getValue().status());
+    assertSame(candidateSolution, feedbackCaptor.getValue().candidateSolution());
+    assertEquals(
+        candidateObjective, feedbackCaptor.getValue().candidateSolution().getObjectiveValue());
   }
 
   @Test
@@ -210,91 +226,14 @@ class AlnsTest {
     assertEquals(100.0, result.bestSolution().getObjectiveValue());
     assertEquals(2, result.totalIterations());
 
-    @SuppressWarnings("unchecked")
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
-        ArgumentCaptor.forClass(OperatorSelectionFeedback.class);
+        ArgumentCaptor.captor();
     verify(mockOperatorSelector, times(2)).update(feedbackCaptor.capture());
     verify(mockAcceptanceCriterion, times(2)).shouldAccept(any());
 
     List<OperatorSelectionFeedback<TestSolution>> feedbacks = feedbackCaptor.getAllValues();
     assertEquals(SolutionStatus.ACCEPTED, feedbacks.get(0).status());
     assertEquals(SolutionStatus.BETTER, feedbacks.get(1).status());
-  }
-
-  @Test
-  void solve_ShouldSetAcceptedStatus_WhenCandidateIsWorseThanCurrentButAccepted() {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution candidateSolution = new TestSolution(120.0, true);
-
-    setupBasicMocks(partialSolution, candidateSolution);
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
-
-    assertNotNull(result);
-    assertEquals(100.0, result.bestSolution().getObjectiveValue());
-    assertEquals(1, result.totalIterations());
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
-        ArgumentCaptor.forClass(OperatorSelectionFeedback.class);
-    verify(mockOperatorSelector).update(feedbackCaptor.capture());
-
-    assertEquals(SolutionStatus.ACCEPTED, feedbackCaptor.getValue().status());
-    assertEquals(120.0, feedbackCaptor.getValue().candidateSolution().getObjectiveValue());
-  }
-
-  @Test
-  void solve_ShouldSetRejectedStatus_WhenAcceptanceCriterionReturnsFalse() {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution candidateSolution = new TestSolution(120.0, true);
-
-    setupBasicMocks(partialSolution, candidateSolution);
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(false);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
-
-    assertNotNull(result);
-    assertEquals(100.0, result.bestSolution().getObjectiveValue());
-    assertEquals(1, result.totalIterations());
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
-        ArgumentCaptor.forClass(OperatorSelectionFeedback.class);
-    verify(mockOperatorSelector).update(feedbackCaptor.capture());
-
-    assertEquals(SolutionStatus.REJECTED, feedbackCaptor.getValue().status());
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void solve_ShouldSetRejectedStatus_WhenCandidateIsInfeasible(boolean isAccepted) {
-    TestSolution initialSolution = new TestSolution(100.0, true);
-    TestSolution partialSolution = new TestSolution(100.0, true);
-    TestSolution infeasibleCandidateSolution = new TestSolution(40.0, false);
-
-    setupBasicMocks(partialSolution, infeasibleCandidateSolution);
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(isAccepted);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion);
-
-    assertNotNull(result);
-    assertEquals(100.0, result.bestSolution().getObjectiveValue());
-    assertEquals(1, result.totalIterations());
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
-        ArgumentCaptor.forClass(OperatorSelectionFeedback.class);
-    verify(mockOperatorSelector).update(feedbackCaptor.capture());
-
-    assertEquals(SolutionStatus.REJECTED, feedbackCaptor.getValue().status());
-
-    verify(mockAcceptanceCriterion).shouldAccept(any());
   }
 
   @ParameterizedTest
@@ -315,7 +254,7 @@ class AlnsTest {
 
   @ParameterizedTest
   @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
-  void solve_ShouldRejectNonFiniteInitialObjective_BeforeResettingComponents(double objective) {
+  void solve_ShouldRejectInitialObjectiveBeforeReset_WhenObjectiveIsNonFinite(double objective) {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
@@ -341,7 +280,7 @@ class AlnsTest {
     "Infinity, false",
     "-Infinity, false"
   })
-  void solve_ShouldRejectNonFiniteCandidateObjective_BeforeAcceptance(
+  void solve_ShouldRejectCandidateObjectiveBeforeAcceptance_WhenObjectiveIsNonFinite(
       double objective, boolean feasible) {
     setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
 
@@ -359,7 +298,7 @@ class AlnsTest {
 
   @ParameterizedTest
   @ValueSource(doubles = {-Double.MAX_VALUE, -1.0, -0.0, 0.0, 1.0, Double.MAX_VALUE})
-  void solve_ShouldAllowFiniteObjectives_ForInitialAndCandidate(double objective) {
+  void solve_ShouldAllowInitialAndCandidateObjectives_WhenObjectivesAreFinite(double objective) {
     setupBasicMocks(new TestSolution(Double.NaN, false), new TestSolution(objective));
     when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
 
@@ -376,5 +315,87 @@ class AlnsTest {
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockDestroyOperator.apply(any(), any())).thenReturn(partialSolution);
     when(mockRepairOperator.apply(any(), any())).thenReturn(candidateSolution);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"1, 2", "3, 2", "2, 1", "2, 3"})
+  void constructor_ShouldRejectConfiguration_WhenSelectorOperatorCountsMismatch(
+      int destroys, int repairs) {
+    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(destroys, repairs)) {
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              new Alns<>(
+                  new Random(1),
+                  List.of(mockDestroyOperator, mockDestroyOperator),
+                  List.of(mockRepairOperator, mockRepairOperator),
+                  selector));
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> operatorCountsBuilder().operatorSelector(selector).build());
+    }
+  }
+
+  @Test
+  void constructor_ShouldAcceptConfiguration_WhenSelectorOperatorCountsMatch() {
+    for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
+      assertDoesNotThrow(
+          () ->
+              new Alns<>(
+                  new Random(1),
+                  List.of(mockDestroyOperator, mockDestroyOperator),
+                  List.of(mockRepairOperator, mockRepairOperator),
+                  selector));
+      assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
+    }
+  }
+
+  @Test
+  void constructor_ShouldAcceptSelector_WhenUsingCustomLambda() {
+    assertDoesNotThrow(
+        () ->
+            operatorCountsBuilder()
+                .operatorSelector(context -> new OperatorSelection(0, 0))
+                .build());
+  }
+
+  @Test
+  void constructor_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
+    OperatorSelector<TestSolution> selector =
+        new OperatorSelector<>() {
+          @Override
+          public OperatorSelection select(OperatorSelectionContext<TestSolution> context) {
+            return new OperatorSelection(0, 0);
+          }
+
+          @Override
+          public void validateOperatorCounts(int destroyCount, int repairCount) {
+            assertEquals(2, destroyCount);
+            assertEquals(2, repairCount);
+            throw new IllegalArgumentException("custom validation");
+          }
+        };
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> operatorCountsBuilder().operatorSelector(selector).build());
+    assertEquals("custom validation", exception.getMessage());
+  }
+
+  private Alns.Builder<TestSolution> operatorCountsBuilder() {
+    return Alns.<TestSolution>builder()
+        .randomGenerator(new Random(1))
+        .addDestroyOperator(mockDestroyOperator)
+        .addDestroyOperator(mockDestroyOperator)
+        .addRepairOperator(mockRepairOperator)
+        .addRepairOperator(mockRepairOperator);
+  }
+
+  private List<OperatorSelector<TestSolution>> operatorCountSelectors(int destroys, int repairs) {
+    return List.of(
+        new RandomOperatorSelector<>(destroys, repairs),
+        new RouletteWheelOperatorSelector<>(destroys, repairs, new double[] {7, 3, 1, 0}, 0.5),
+        new SegmentedRouletteWheelOperatorSelector<>(
+            destroys, repairs, new double[] {7, 3, 1, 0}, 0.5, 10));
   }
 }

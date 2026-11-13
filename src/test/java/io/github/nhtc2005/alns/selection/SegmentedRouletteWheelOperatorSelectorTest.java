@@ -149,15 +149,32 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"BEST, 7.5", "BETTER, 3.5", "ACCEPTED, 1.5", "REJECTED, 0.5"})
-  void update_ShouldApplyTotalOutcomeScore_WhenSegmentCompletes(
-      SolutionStatus status, double expectedWeight) {
-    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 2);
-    selector.update(feedback(0, 0, status));
-    selector.update(feedback(0, 0, status));
+  @CsvSource({
+    "BEST, 0.5, 2, 7.5, 0.5",
+    "BETTER, 0.5, 2, 3.5, 0.5",
+    "ACCEPTED, 0.5, 2, 1.5, 0.5",
+    "REJECTED, 0.5, 2, 0.5, 0.5",
+    "BEST, 0.0, 2, 14.0, 0.0",
+    "BEST, 1.0, 2, 1.0, 1.0",
+    "BEST, 0.5, 1, 4.0, 0.5"
+  })
+  void update_ShouldApplyScoresAndDecay_WhenSegmentCompletes(
+      SolutionStatus status,
+      double decay,
+      int segmentLength,
+      double expectedSelectedWeight,
+      double expectedUnusedWeight) {
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(decay, segmentLength);
+    for (int iteration = 0; iteration < segmentLength; iteration++) {
+      selector.update(feedback(1, 0, status));
+    }
 
-    assertArrayEquals(new double[] {expectedWeight, 0.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {expectedWeight, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(
+        new double[] {expectedUnusedWeight, expectedSelectedWeight},
+        selector.getDestroyOperatorWeights());
+    assertArrayEquals(
+        new double[] {expectedSelectedWeight, expectedUnusedWeight},
+        selector.getRepairOperatorWeights());
     assertArrayEquals(new double[] {0, 0}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {0, 0}, selector.getRepairOperatorSegmentScores());
     assertEquals(0, selector.getIterationsInSegment());
@@ -210,35 +227,6 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     selector.update(feedback(0, 0, SolutionStatus.BEST));
 
     assertArrayEquals(new double[] {7.5, 0.5}, selector.getDestroyOperatorWeights());
-    assertEquals(0, selector.getIterationsInSegment());
-  }
-
-  @Test
-  void update_ShouldUpdateAllWeightsImmediately_WhenSegmentLengthIsOne() {
-    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 1);
-    selector.update(feedback(1, 0, SolutionStatus.BEST));
-
-    assertArrayEquals(new double[] {0.5, 4}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {4, 0.5}, selector.getRepairOperatorWeights());
-    assertEquals(0, selector.getIterationsInSegment());
-  }
-
-  @ParameterizedTest
-  @CsvSource({"0.0, 14.0, 0.0", "1.0, 1.0, 1.0"})
-  void update_ShouldRespectDecayBoundary_WhenSegmentCompletes(
-      double decay, double expectedSelectedWeight, double expectedUnusedWeight) {
-    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(decay, 2);
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-
-    assertArrayEquals(
-        new double[] {expectedSelectedWeight, expectedUnusedWeight},
-        selector.getDestroyOperatorWeights());
-    assertArrayEquals(
-        new double[] {expectedSelectedWeight, expectedUnusedWeight},
-        selector.getRepairOperatorWeights());
-    assertArrayEquals(new double[] {0, 0}, selector.getDestroyOperatorSegmentScores());
-    assertArrayEquals(new double[] {0, 0}, selector.getRepairOperatorSegmentScores());
     assertEquals(0, selector.getIterationsInSegment());
   }
 
@@ -307,8 +295,10 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     double[] configuredScores = selector.getScores();
     assertArrayEquals(new double[] {7, 3, 1, 0}, configuredScores);
-    configuredScores[0] = 0;
     selector.update(feedback(0, 0, SolutionStatus.BEST));
+    assertArrayEquals(new double[] {7, 0}, selector.getDestroyOperatorSegmentScores());
+    assertArrayEquals(new double[] {7, 0}, selector.getRepairOperatorSegmentScores());
+    configuredScores[0] = 0;
     selector.update(feedback(0, 0, SolutionStatus.BEST));
 
     assertArrayEquals(new double[] {7.5, 0.5}, selector.getDestroyOperatorWeights());

@@ -17,9 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SimulatedAnnealingTest {
 
   @Mock private RandomGenerator mockRandomGenerator;
-  @Mock private AcceptanceContext<TestSolution> mockContext;
-  @Mock private TestSolution mockCurrentSolution;
-  @Mock private TestSolution mockCandidateSolution;
 
   @Test
   void constructor_ShouldThrowException_WhenMethodIsNull() {
@@ -88,21 +85,11 @@ class SimulatedAnnealingTest {
   void constructor_ShouldUseExponentialCooling_WhenMethodIsNotSpecified() {
     SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(100.0, 1.0, 0.5);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertEquals(100.0, sa.getStartTemperature(), 1e-6);
-    assertEquals(1.0, sa.getEndTemperature(), 1e-6);
-    assertEquals(0.5, sa.getStep(), 1e-6);
+    assertEquals(100.0, sa.getStartTemperature());
+    assertEquals(1.0, sa.getEndTemperature());
+    assertEquals(0.5, sa.getStep());
     assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
-    assertEquals(100.0, sa.getTemperature(), 1e-6);
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(50.0, sa.getTemperature(), 1e-6);
-    assertEquals(100.0, sa.getStartTemperature(), 1e-6);
+    assertEquals(100.0, sa.getTemperature());
   }
 
   @ParameterizedTest
@@ -119,14 +106,10 @@ class SimulatedAnnealingTest {
     SimulatedAnnealing<TestSolution> sa =
         new SimulatedAnnealing<>(100.0, 1.0, 0.95, SimulatedAnnealing.CoolingMethod.EXPONENTIAL);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(90.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 90.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.99);
 
-    assertTrue(sa.shouldAccept(mockContext));
+    assertTrue(sa.shouldAccept(context));
   }
 
   @ParameterizedTest
@@ -135,14 +118,10 @@ class SimulatedAnnealingTest {
       double randomValue, boolean expected) {
     SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(10.0, 1.0, 0.5);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(110.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 110.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
 
-    assertEquals(expected, sa.shouldAccept(mockContext));
+    assertEquals(expected, sa.shouldAccept(context));
     assertEquals(5.0, sa.getTemperature(), 1e-6);
   }
 
@@ -150,202 +129,112 @@ class SimulatedAnnealingTest {
   void shouldAccept_ShouldAccept_WhenRandomValueEqualsProbability() {
     SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(10.0, 1.0, 0.5);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(110.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 110.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(Math.exp(-1.0));
 
-    assertTrue(sa.shouldAccept(mockContext));
+    assertTrue(sa.shouldAccept(context));
   }
 
   @Test
   void shouldAccept_ShouldUseTemperatureBeforeCooling_WhenCandidateIsWorse() {
     SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(100.0, 1.0, 0.5);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(110.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 110.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.86);
 
     // exp(-10 / 100) > 0.86, but exp(-10 / 50) < 0.86.
-    assertTrue(sa.shouldAccept(mockContext));
+    assertTrue(sa.shouldAccept(context));
     assertEquals(50.0, sa.getTemperature(), 1e-6);
-    assertFalse(sa.shouldAccept(mockContext));
+    assertFalse(sa.shouldAccept(context));
     assertEquals(25.0, sa.getTemperature(), 1e-6);
   }
 
-  @Test
-  void shouldAccept_ShouldCoolDownLinearly_WhenLinearMethodUsed() {
-    double startTemp = 100.0;
-    double step = 10.0;
-    SimulatedAnnealing<TestSolution> sa =
-        new SimulatedAnnealing<>(startTemp, 1.0, step, SimulatedAnnealing.CoolingMethod.LINEAR);
-
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+  @ParameterizedTest
+  @CsvSource({"LINEAR, 10.0", "EXPONENTIAL, 0.9"})
+  void shouldAccept_ShouldApplyCoolingSchedule_WhenCandidateIsEvaluated(
+      SimulatedAnnealing.CoolingMethod method, double step) {
+    SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(100.0, 1.0, step, method);
+    AcceptanceContext<TestSolution> context = context(100.0, 100.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
-    assertTrue(sa.shouldAccept(mockContext));
-
-    assertEquals(90.0, sa.getTemperature(), 1e-6);
-  }
-
-  @Test
-  void shouldAccept_ShouldCoolDownExponentially_WhenExponentialMethodUsed() {
-    double startTemp = 100.0;
-    double step = 0.9;
-    SimulatedAnnealing<TestSolution> sa =
-        new SimulatedAnnealing<>(
-            startTemp, 1.0, step, SimulatedAnnealing.CoolingMethod.EXPONENTIAL);
-
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertTrue(sa.shouldAccept(mockContext));
-
+    assertTrue(sa.shouldAccept(context));
     assertEquals(90.0, sa.getTemperature(), 1e-6);
   }
 
   @ParameterizedTest
   @EnumSource(SimulatedAnnealing.CoolingMethod.class)
-  void shouldAccept_ShouldNotCoolBelowEndTemperature(SimulatedAnnealing.CoolingMethod method) {
+  void shouldAccept_ShouldKeepEndTemperature_WhenCoolingWouldExceedLowerBound(
+      SimulatedAnnealing.CoolingMethod method) {
     double step = method == SimulatedAnnealing.CoolingMethod.LINEAR ? 8.0 : 0.1;
     SimulatedAnnealing<TestSolution> sa = new SimulatedAnnealing<>(10.0, 5.0, step, method);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 100.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
     for (int iteration = 0; iteration < 3; iteration++) {
-      assertTrue(sa.shouldAccept(mockContext));
+      assertTrue(sa.shouldAccept(context));
       assertEquals(5.0, sa.getTemperature(), 1e-6);
     }
   }
 
   @Test
-  void reset_ShouldResetTemperatureToStartTemperature() {
+  void reset_ShouldRestoreStartTemperature_WhenTemperatureHasDecreased() {
     SimulatedAnnealing<TestSolution> sa =
         new SimulatedAnnealing<>(100.0, 1.0, 10.0, SimulatedAnnealing.CoolingMethod.LINEAR);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(100.0, 100.0);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
-    sa.shouldAccept(mockContext);
+    sa.shouldAccept(context);
     assertEquals(90.0, sa.getTemperature(), 1e-6);
 
     sa.reset();
     assertEquals(100.0, sa.getTemperature(), 1e-6);
   }
 
-  @Test
-  void autofit_ShouldUseExponentialCooling_WhenMethodIsNotSpecified() {
+  @ParameterizedTest
+  @CsvSource({"false, 1.0, 0.5, 2.0", "true, 0.25, 0.25, 1.0"})
+  void autofit_ShouldUseExponentialCooling_WhenMethodIsNotSpecified(
+      boolean customEnd, double expectedEnd, double expectedStep, double firstTemperature) {
+    double objective = -4.0 * Math.log(0.5);
     SimulatedAnnealing<TestSolution> sa =
-        SimulatedAnnealing.autofit(-4.0 * Math.log(0.5), 1.0, 0.5, 2);
-
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
+        customEnd
+            ? SimulatedAnnealing.autofit(objective, 1.0, 0.5, 2, expectedEnd)
+            : SimulatedAnnealing.autofit(objective, 1.0, 0.5, 2);
+    AcceptanceContext<TestSolution> context = context(objective, objective);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
     assertEquals(4.0, sa.getStartTemperature(), 1e-6);
-    assertEquals(1.0, sa.getEndTemperature(), 1e-6);
-    assertEquals(0.5, sa.getStep(), 1e-6);
+    assertEquals(expectedEnd, sa.getEndTemperature());
+    assertEquals(expectedStep, sa.getStep(), 1e-6);
     assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
     assertEquals(4.0, sa.getTemperature(), 1e-6);
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(2.0, sa.getTemperature(), 1e-6);
-  }
-
-  @Test
-  void autofit_ShouldCreateValidInstance_WhenLinearMethodUsed() {
-    SimulatedAnnealing<TestSolution> sa =
-        SimulatedAnnealing.autofit(100.0, 0.1, 0.5, 1000, SimulatedAnnealing.CoolingMethod.LINEAR);
-
-    assertNotNull(sa);
-    assertEquals(SimulatedAnnealing.CoolingMethod.LINEAR, sa.getMethod());
-    assertEquals(0.01342695, sa.getStep(), 1e-8);
-    // startTemp = -(0.1 * 100) / ln(0.5) = -10 / -0.693147 = 14.42695
-    assertEquals(14.42695, sa.getTemperature(), 1e-4);
-
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(14.413523, sa.getTemperature(), 1e-6);
-
-    for (int iteration = 1; iteration < 1000; iteration++) {
-      assertTrue(sa.shouldAccept(mockContext));
-    }
-    assertEquals(1.0, sa.getTemperature(), 1e-6);
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(1.0, sa.getTemperature(), 1e-6);
-  }
-
-  @Test
-  void autofit_ShouldCreateValidInstance_WhenExponentialMethodUsed() {
-    SimulatedAnnealing<TestSolution> sa =
-        SimulatedAnnealing.autofit(
-            100.0, 0.1, 0.5, 1000, SimulatedAnnealing.CoolingMethod.EXPONENTIAL);
-
-    assertNotNull(sa);
-    assertEquals(14.42695, sa.getTemperature(), 1e-4);
-
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(14.388495, sa.getTemperature(), 1e-6);
-
-    for (int iteration = 1; iteration < 1000; iteration++) {
-      assertTrue(sa.shouldAccept(mockContext));
-    }
-    assertEquals(1.0, sa.getTemperature(), 1e-6);
-    assertTrue(sa.shouldAccept(mockContext));
-    assertEquals(1.0, sa.getTemperature(), 1e-6);
+    assertTrue(sa.shouldAccept(context));
+    assertEquals(firstTemperature, sa.getTemperature(), 1e-6);
   }
 
   @ParameterizedTest
-  @CsvSource({"0.49, true", "0.51, false"})
-  void autofit_ShouldUseInitialAcceptanceProbability_WhenCandidateIsWorse(
-      double randomValue, boolean expected) {
-    SimulatedAnnealing<TestSolution> sa = SimulatedAnnealing.autofit(100.0, 0.1, 0.5, 1000);
+  @CsvSource({"LINEAR, 3.75, 12.25", "EXPONENTIAL, 0.5, 8.0"})
+  void autofit_ShouldReachDefaultEndTemperature_WhenAllIterationsComplete(
+      SimulatedAnnealing.CoolingMethod method, double expectedStep, double firstTemperature) {
+    SimulatedAnnealing<TestSolution> sa =
+        SimulatedAnnealing.autofit(-16.0 * Math.log(0.5), 1.0, 0.5, 4, method);
+    assertEquals(method, sa.getMethod());
+    assertEquals(16.0, sa.getStartTemperature(), 1e-6);
+    assertEquals(1.0, sa.getEndTemperature());
+    assertEquals(16.0, sa.getTemperature(), 1e-6);
+    assertEquals(expectedStep, sa.getStep(), 1e-8);
+    AcceptanceContext<TestSolution> context = context(100.0, 100.0);
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
-    when(mockContext.currentSolution()).thenReturn(mockCurrentSolution);
-    when(mockContext.candidateSolution()).thenReturn(mockCandidateSolution);
-    when(mockCurrentSolution.getObjectiveValue()).thenReturn(100.0);
-    when(mockCandidateSolution.getObjectiveValue()).thenReturn(110.0);
-    when(mockContext.randomGenerator()).thenReturn(mockRandomGenerator);
-    when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
-
-    assertEquals(expected, sa.shouldAccept(mockContext));
+    assertTrue(sa.shouldAccept(context));
+    assertEquals(firstTemperature, sa.getTemperature(), 1e-6);
+    for (int iteration = 1; iteration < 4; iteration++) {
+      assertTrue(sa.shouldAccept(context));
+    }
+    assertEquals(1.0, sa.getTemperature(), 1e-6);
+    assertTrue(sa.shouldAccept(context));
+    assertEquals(1.0, sa.getTemperature(), 1e-6);
   }
 
   @Test
@@ -411,29 +300,27 @@ class SimulatedAnnealingTest {
   }
 
   @ParameterizedTest
-  @EnumSource(SimulatedAnnealing.CoolingMethod.class)
-  void autofit_ShouldFitNegativeObjectiveAndCoolToConfiguredEnd(
-      SimulatedAnnealing.CoolingMethod method) {
+  @CsvSource({
+    "LINEAR, 0.1, 0.11",
+    "EXPONENTIAL, 0.1, 0.11",
+    "LINEAR, -0.1, -0.09",
+    "EXPONENTIAL, -0.1, -0.09"
+  })
+  void autofit_ShouldFitAcceptanceAndCooling_WhenObjectiveIsPositiveOrNegative(
+      SimulatedAnnealing.CoolingMethod method, double objective, double candidateObjective) {
     SimulatedAnnealing<TestSolution> sa =
-        SimulatedAnnealing.autofit(-0.1, 0.1, 0.5, 20, 0.001, method);
+        SimulatedAnnealing.autofit(objective, 0.1, 0.5, 4, 0.001, method);
     double start = -0.01 / Math.log(0.5);
     assertEquals(start, sa.getStartTemperature(), 1e-15);
     assertEquals(0.001, sa.getEndTemperature());
     assertEquals(method, sa.getMethod());
 
-    AcceptanceContext<TestSolution> context =
-        new AcceptanceContext<>(
-            0,
-            0,
-            new TestSolution(-0.1),
-            new TestSolution(-0.1),
-            new TestSolution(-0.09),
-            mockRandomGenerator);
+    AcceptanceContext<TestSolution> context = context(objective, candidateObjective);
     when(mockRandomGenerator.nextDouble()).thenReturn(0.49, 0.51);
     assertTrue(sa.shouldAccept(context));
     sa.reset();
     assertFalse(sa.shouldAccept(context));
-    for (int i = 1; i < 20; i++) {
+    for (int i = 1; i < 4; i++) {
       sa.shouldAccept(context);
     }
     assertEquals(0.001, sa.getTemperature(), 1e-15);
@@ -441,16 +328,9 @@ class SimulatedAnnealingTest {
     assertEquals(0.001, sa.getTemperature(), 1e-15);
   }
 
-  @Test
-  void autofit_ShouldUseExponentialCooling_WhenOnlyEndTemperatureIsSpecified() {
-    SimulatedAnnealing<TestSolution> sa = SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, 0.01);
-    assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
-    assertEquals(0.01, sa.getEndTemperature());
-  }
-
   @ParameterizedTest
   @CsvSource({"0.0", "-1.0", "NaN", "Infinity", "-Infinity"})
-  void autofit_ShouldRejectInvalidEndTemperature(double endTemperature) {
+  void autofit_ShouldThrowException_WhenEndTemperatureIsInvalid(double endTemperature) {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
@@ -460,7 +340,8 @@ class SimulatedAnnealingTest {
 
   @ParameterizedTest
   @EnumSource(SimulatedAnnealing.CoolingMethod.class)
-  void autofit_ShouldRejectStartAtOrBelowEnd(SimulatedAnnealing.CoolingMethod method) {
+  void autofit_ShouldThrowException_WhenStartTemperatureIsAtOrBelowEnd(
+      SimulatedAnnealing.CoolingMethod method) {
     double start = -10.0 / Math.log(0.5);
     for (double end : new double[] {start, start * 2}) {
       IllegalArgumentException exception =
@@ -471,5 +352,12 @@ class SimulatedAnnealingTest {
           "Autofit requires a finite startTemperature strictly greater than endTemperature.",
           exception.getMessage());
     }
+  }
+
+  private AcceptanceContext<TestSolution> context(
+      double currentObjective, double candidateObjective) {
+    TestSolution current = new TestSolution(currentObjective);
+    return new AcceptanceContext<>(
+        0, 0, current, current, new TestSolution(candidateObjective), mockRandomGenerator);
   }
 }

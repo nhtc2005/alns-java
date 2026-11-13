@@ -27,20 +27,12 @@ class NoImprovementTest {
 
     assertEquals(3, criterion.getMaxIterations());
     assertEquals(0, criterion.getLastImprovementIteration());
-    assertFalse(criterion.shouldStop(context(0, 100.0, 100.0)));
-    assertFalse(criterion.shouldStop(context(2, 100.0, 100.0)));
-    assertTrue(criterion.shouldStop(context(3, 100.0, 100.0)));
-    assertTrue(criterion.shouldStop(context(4, 100.0, 100.0)));
-  }
-
-  @Test
-  void shouldStop_ShouldNotCountAdditionalIterations_WhenCalledRepeatedlyForSameIteration() {
-    NoImprovement<TestSolution> criterion = new NoImprovement<>(2);
-
     for (int call = 0; call < 4; call++) {
       assertFalse(criterion.shouldStop(context(0, 100.0, 100.0)));
     }
-    assertTrue(criterion.shouldStop(context(2, 100.0, 100.0)));
+    assertFalse(criterion.shouldStop(context(2, 100.0, 100.0)));
+    assertTrue(criterion.shouldStop(context(3, 100.0, 100.0)));
+    assertTrue(criterion.shouldStop(context(4, 100.0, 100.0)));
   }
 
   @Test

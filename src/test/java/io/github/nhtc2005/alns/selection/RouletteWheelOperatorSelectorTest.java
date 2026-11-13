@@ -151,16 +151,15 @@ class RouletteWheelOperatorSelectorTest {
     verify(mockRandomGenerator, never()).nextDouble();
   }
 
-  @ParameterizedTest
-  @CsvSource({"0.25, 0", "0.75, 1"})
-  void select_ShouldAvoidOverflow_WhenWeightsAreVeryLarge(double randomValue, int expectedIndex) {
+  @Test
+  void select_ShouldAvoidOverflow_WhenWeightsAreVeryLarge() {
     RouletteWheelOperatorSelector<TestSolution> selector =
         new RouletteWheelOperatorSelector<>(2, 2, new double[] {Double.MAX_VALUE, 3, 1, 0}, 0.0);
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.25, 0.75);
 
-    assertEquals(new OperatorSelection(expectedIndex, expectedIndex), selector.select(context()));
+    assertEquals(new OperatorSelection(0, 1), selector.select(context()));
   }
 
   @Test
@@ -184,15 +183,21 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @Test
-  void constructor_ShouldCopyScores_WhenCallerMutatesOriginalArray() {
+  void update_ShouldPreserveConfiguredScores_WhenCallerModifiesArrays() {
     double[] scores = {7, 3, 1, 0};
     RouletteWheelOperatorSelector<TestSolution> selector =
         new RouletteWheelOperatorSelector<>(2, 2, scores, 0.0);
     scores[0] = 0;
+    assertArrayEquals(new double[] {7, 3, 1, 0}, selector.getScores());
     selector.update(feedback(0, 0, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
+    assertArrayEquals(new double[] {7, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {7, 1}, selector.getRepairOperatorWeights());
 
-    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
+    double[] returnedScores = selector.getScores();
+    returnedScores[0] = 0;
+    selector.update(feedback(1, 1, SolutionStatus.BEST));
+    assertArrayEquals(new double[] {7, 7}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {7, 7}, selector.getRepairOperatorWeights());
   }
 
   @Test
@@ -213,41 +218,20 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @Test
-  void getScores_ShouldReturnCopy_WhenCallerModifiesArray() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
-
-    double[] scores = selector.getScores();
-    assertArrayEquals(new double[] {7, 3, 1, 0}, scores);
-    scores[0] = 0;
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
-  }
-
-  @Test
-  void getDestroyOperatorWeights_ShouldReturnCopy_WhenCallerModifiesArray() {
+  void select_ShouldUseInternalWeights_WhenCallerModifiesReturnedArrays() {
     RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
     selector.update(feedback(1, 0, SolutionStatus.BEST));
 
-    double[] destroyOperatorWeights = selector.getDestroyOperatorWeights();
-    assertArrayEquals(new double[] {1.0, 4.0}, destroyOperatorWeights);
-    destroyOperatorWeights[1] = 0.0;
+    double[] destroyWeights = selector.getDestroyOperatorWeights();
+    double[] repairWeights = selector.getRepairOperatorWeights();
+    assertArrayEquals(new double[] {1, 4}, destroyWeights);
+    assertArrayEquals(new double[] {4, 1}, repairWeights);
+    destroyWeights[1] = 0;
+    repairWeights[0] = 0;
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
-    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
-  }
-
-  @Test
-  void getRepairOperatorWeights_ShouldReturnCopy_WhenCallerModifiesArray() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
-    selector.update(feedback(1, 0, SolutionStatus.BEST));
-
-    double[] repairOperatorWeights = selector.getRepairOperatorWeights();
-    assertArrayEquals(new double[] {4.0, 1.0}, repairOperatorWeights);
-    repairOperatorWeights[0] = 0.0;
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
+    assertArrayEquals(new double[] {1, 4}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getRepairOperatorWeights());
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
   }
 

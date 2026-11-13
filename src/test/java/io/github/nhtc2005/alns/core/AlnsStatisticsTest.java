@@ -82,7 +82,7 @@ class AlnsStatisticsTest {
   }
 
   @Test
-  void disabled_ShouldExposeEmptyStatistics() {
+  void disabled_ShouldExposeEmptyStatistics_WhenCollectionIsDisabled() {
     AlnsStatistics statistics = AlnsStatistics.disabled();
 
     assertFalse(statistics.isEnabled());

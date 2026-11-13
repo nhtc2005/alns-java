@@ -1,22 +1,15 @@
 package io.github.nhtc2005.alns.stopping;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 
 import io.github.nhtc2005.alns.util.TestSolution;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class MaxRuntimeTest {
-
-  @Mock private StoppingContext<TestSolution> mockContext;
 
   @Test
   void constructor_ShouldThrowException_WhenMaxRuntimeIsNull() {
@@ -43,9 +36,10 @@ class MaxRuntimeTest {
   void shouldStop_ShouldCompareElapsedTimeWithLimit_WhenCalled(
       long elapsedNanos, boolean expected) {
     MaxRuntime<TestSolution> criterion = new MaxRuntime<>(Duration.ofNanos(100));
-    when(mockContext.elapsedNanos()).thenReturn(elapsedNanos);
+    StoppingContext<TestSolution> context =
+        new StoppingContext<>(0, elapsedNanos, null, null, null);
 
     assertEquals(Duration.ofNanos(100), criterion.getMaxRuntime());
-    assertEquals(expected, criterion.shouldStop(mockContext));
+    assertEquals(expected, criterion.shouldStop(context));
   }
 }
