@@ -110,6 +110,45 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   }
 
   @ParameterizedTest
+  @CsvSource({"BETTER", "ACCEPTED"})
+  void update_ShouldAdvanceSegmentWithoutAddingScore_WhenFeedbackIsNotRewardEligible(
+      SolutionStatus status) {
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 3);
+    selector.update(feedback(1, 0, SolutionStatus.BEST));
+
+    selector.update(
+        new OperatorSelectionFeedback<>(
+            new OperatorSelection(1, 0), new TestSolution(100.0), status, false));
+
+    assertEquals(2, selector.getIterationsInSegment());
+    assertArrayEquals(new double[] {0, 7}, selector.getDestroyOperatorSegmentScores());
+    assertArrayEquals(new double[] {7, 0}, selector.getRepairOperatorSegmentScores());
+    assertArrayEquals(new double[] {1, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1, 1}, selector.getRepairOperatorWeights());
+
+    selector.update(
+        new OperatorSelectionFeedback<>(
+            new OperatorSelection(0, 1), new TestSolution(100.0), status, false));
+
+    assertEquals(0, selector.getIterationsInSegment());
+    assertArrayEquals(new double[] {0, 0}, selector.getDestroyOperatorSegmentScores());
+    assertArrayEquals(new double[] {0, 0}, selector.getRepairOperatorSegmentScores());
+    assertArrayEquals(new double[] {0.5, 4}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 0.5}, selector.getRepairOperatorWeights());
+  }
+
+  @Test
+  void update_ShouldApplyConfiguredRejectedScore_WhenUsingLegacyFeedbackConstructor() {
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector =
+        new SegmentedRouletteWheelOperatorSelector<>(2, 2, new double[] {7, 3, 1, 2}, 0.5, 1);
+
+    selector.update(feedback(1, 0, SolutionStatus.REJECTED));
+
+    assertArrayEquals(new double[] {0.5, 1.5}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1.5, 0.5}, selector.getRepairOperatorWeights());
+  }
+
+  @ParameterizedTest
   @CsvSource({"BEST, 7.5", "BETTER, 3.5", "ACCEPTED, 1.5", "REJECTED, 0.5"})
   void update_ShouldApplyTotalOutcomeScore_WhenSegmentCompletes(
       SolutionStatus status, double expectedWeight) {
@@ -382,7 +421,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
         Alns.<TestSolution>builder()
             .randomGenerator(new Random(1))
             .addDestroyOperator((solution, randomGenerator) -> solution)
-            .addRepairOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator(
+                (solution, randomGenerator) -> new TestSolution(solution.getObjectiveValue() + 1))
             .operatorSelector(selector)
             .build();
 

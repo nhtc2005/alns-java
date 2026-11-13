@@ -73,12 +73,14 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
             feedback.operatorSelection().repairOperatorIndex(), repairOperatorWeights.length);
 
     double score =
-        switch (feedback.status()) {
-          case BEST -> scores[0];
-          case BETTER -> scores[1];
-          case ACCEPTED -> scores[2];
-          case REJECTED -> scores[3];
-        };
+        feedback.isRewardEligible()
+            ? switch (feedback.status()) {
+              case BEST -> scores[0];
+              case BETTER -> scores[1];
+              case ACCEPTED -> scores[2];
+              case REJECTED -> scores[3];
+            }
+            : 0.0;
 
     double destroySegmentScore = destroyOperatorSegmentScores[destroyOperatorIndex] + score;
     double repairSegmentScore = repairOperatorSegmentScores[repairOperatorIndex] + score;

@@ -2,6 +2,7 @@ package io.github.nhtc2005.alns.core;
 
 import io.github.nhtc2005.alns.acceptance.AcceptanceContext;
 import io.github.nhtc2005.alns.acceptance.AcceptanceCriterion;
+import io.github.nhtc2005.alns.memory.VisitedSolutionTracker;
 import io.github.nhtc2005.alns.model.Solution;
 import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
@@ -25,6 +26,7 @@ public final class Alns<S extends Solution<S>> {
   private final List<RepairOperator<S>> repairOperators;
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
+  private final VisitedSolutionTracker<S> visitedSolutionTracker;
 
   public Alns(
       RandomGenerator randomGenerator,
@@ -40,6 +42,22 @@ public final class Alns<S extends Solution<S>> {
       List<RepairOperator<S>> repairOperators,
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics) {
+    this(
+        randomGenerator,
+        destroyOperators,
+        repairOperators,
+        operatorSelector,
+        collectStatistics,
+        VisitedSolutionTracker.disabled());
+  }
+
+  public Alns(
+      RandomGenerator randomGenerator,
+      List<DestroyOperator<S>> destroyOperators,
+      List<RepairOperator<S>> repairOperators,
+      OperatorSelector<S> operatorSelector,
+      boolean collectStatistics,
+      VisitedSolutionTracker<S> visitedSolutionTracker) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
@@ -47,6 +65,8 @@ public final class Alns<S extends Solution<S>> {
     this.operatorSelector =
         Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
     this.collectStatistics = collectStatistics;
+    this.visitedSolutionTracker =
+        Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
   }
 
   public static <S extends Solution<S>> Builder<S> builder() {
@@ -68,11 +88,13 @@ public final class Alns<S extends Solution<S>> {
     operatorSelector.reset();
     acceptanceCriterion.reset();
     stoppingCriterion.reset();
+    visitedSolutionTracker.reset();
 
     long startedAt = System.nanoTime();
     long iteration = 0;
     S currentSolution = copyOf(initialSolution, "initialSolution.copy() must not return null.");
     S bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
+    visitedSolutionTracker.recordIfNew(currentSolution);
     AlnsStatistics statistics =
         collectStatistics
             ? new AlnsStatistics(destroyOperators.size(), repairOperators.size())
@@ -115,6 +137,7 @@ public final class Alns<S extends Solution<S>> {
               "RepairOperator.apply(...) must not return null.");
 
       SolutionStatus status;
+      boolean isRewardEligible = true;
       boolean isFeasible = candidateSolution.isFeasible();
       boolean isAccepted =
           acceptanceCriterion.shouldAccept(
@@ -130,18 +153,20 @@ public final class Alns<S extends Solution<S>> {
         currentSolution = candidateSolution;
         bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
         status = SolutionStatus.BEST;
+        visitedSolutionTracker.recordIfNew(candidateSolution);
       } else if (isFeasible && isAccepted) {
-        status =
-            isBetter(candidateSolution, currentSolution)
-                ? SolutionStatus.BETTER
-                : SolutionStatus.ACCEPTED;
+        int comparisonToCurrent = candidateSolution.compareTo(currentSolution);
+        status = comparisonToCurrent < 0 ? SolutionStatus.BETTER : SolutionStatus.ACCEPTED;
+        boolean isNew = visitedSolutionTracker.recordIfNew(candidateSolution);
+        isRewardEligible = isNew && comparisonToCurrent != 0;
         currentSolution = candidateSolution;
       } else {
         status = SolutionStatus.REJECTED;
       }
 
       operatorSelector.update(
-          new OperatorSelectionFeedback<>(operatorSelection, candidateSolution, status));
+          new OperatorSelectionFeedback<>(
+              operatorSelection, candidateSolution, status, isRewardEligible));
       if (collectStatistics) {
         long iterationRuntimeNanos = System.nanoTime() - iterationStartedAt;
         statistics.collectIteration(
@@ -189,6 +214,7 @@ public final class Alns<S extends Solution<S>> {
     private final List<RepairOperator<S>> repairOperators = new ArrayList<>();
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
+    private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
 
     private Builder() {}
 
@@ -221,6 +247,13 @@ public final class Alns<S extends Solution<S>> {
       return this;
     }
 
+    public Builder<S> visitedSolutionTracker(VisitedSolutionTracker<S> visitedSolutionTracker) {
+      this.visitedSolutionTracker =
+          Objects.requireNonNull(
+              visitedSolutionTracker, "visitedSolutionTracker must not be null.");
+      return this;
+    }
+
     public Alns<S> build() {
       RandomGenerator configuredRandomGenerator =
           Objects.requireNonNull(randomGenerator, "A randomGenerator is required.");
@@ -242,7 +275,8 @@ public final class Alns<S extends Solution<S>> {
           destroyOperators,
           repairOperators,
           configuredOperatorSelector,
-          collectStatistics);
+          collectStatistics,
+          visitedSolutionTracker);
     }
   }
 }
