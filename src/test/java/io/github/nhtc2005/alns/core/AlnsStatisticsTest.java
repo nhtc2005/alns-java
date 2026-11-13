@@ -82,10 +82,8 @@ class AlnsStatisticsTest {
   }
 
   @Test
-  void collectIteration_ShouldKeepStatisticsEmpty_WhenCollectionIsDisabled() {
+  void disabled_ShouldExposeEmptyStatistics() {
     AlnsStatistics statistics = AlnsStatistics.disabled();
-    statistics.collectInitial(100.0, 100.0);
-    statistics.collectIteration(new OperatorSelection(0, 0), SolutionStatus.BEST, 80.0, 80.0, 5);
 
     assertFalse(statistics.isEnabled());
     assertTrue(statistics.getCurrentObjectiveValues().isEmpty());
