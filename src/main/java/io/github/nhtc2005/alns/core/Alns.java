@@ -84,6 +84,7 @@ public final class Alns<S extends Solution<S>> {
     if (!initialSolution.isFeasible()) {
       throw new IllegalArgumentException("initialSolution must be feasible.");
     }
+    validateObjective(initialSolution, "initialSolution");
 
     operatorSelector.reset();
     acceptanceCriterion.reset();
@@ -135,6 +136,7 @@ public final class Alns<S extends Solution<S>> {
                   .get(operatorSelection.repairOperatorIndex())
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
+      validateObjective(candidateSolution, "candidateSolution");
 
       SolutionStatus status;
       boolean isRewardEligible = true;
@@ -182,6 +184,12 @@ public final class Alns<S extends Solution<S>> {
     }
 
     return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
+  }
+
+  private static void validateObjective(Solution<?> solution, String name) {
+    if (!Double.isFinite(solution.getObjectiveValue())) {
+      throw new IllegalArgumentException(name + " objective must be finite.");
+    }
   }
 
   private static <T> List<T> copyNonEmpty(List<T> values, String name) {

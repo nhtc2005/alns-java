@@ -312,6 +312,64 @@ class AlnsTest {
         "operatorSelector returned an out-of-range operator index.", exception.getMessage());
   }
 
+  @ParameterizedTest
+  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+  void solve_ShouldRejectNonFiniteInitialObjective_BeforeResettingComponents(double objective) {
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                alns.solve(
+                    new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion));
+
+    assertEquals("initialSolution objective must be finite.", exception.getMessage());
+    verifyNoInteractions(
+        mockOperatorSelector,
+        mockAcceptanceCriterion,
+        mockStoppingCriterion,
+        mockDestroyOperator,
+        mockRepairOperator);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "NaN, true",
+    "Infinity, true",
+    "-Infinity, true",
+    "NaN, false",
+    "Infinity, false",
+    "-Infinity, false"
+  })
+  void solve_ShouldRejectNonFiniteCandidateObjective_BeforeAcceptance(
+      double objective, boolean feasible) {
+    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
+
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                alns.solve(
+                    new TestSolution(100.0), mockAcceptanceCriterion, mockStoppingCriterion));
+
+    assertEquals("candidateSolution objective must be finite.", exception.getMessage());
+    verify(mockAcceptanceCriterion, never()).shouldAccept(any());
+    verify(mockOperatorSelector, never()).update(any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(doubles = {-Double.MAX_VALUE, -1.0, -0.0, 0.0, 1.0, Double.MAX_VALUE})
+  void solve_ShouldAllowFiniteObjectives_ForInitialAndCandidate(double objective) {
+    setupBasicMocks(new TestSolution(Double.NaN, false), new TestSolution(objective));
+    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
+
+    AlnsResult<TestSolution> result =
+        alns.solve(new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion);
+
+    assertEquals(objective, result.bestSolution().getObjectiveValue());
+    assertEquals(1, result.totalIterations());
+    verify(mockAcceptanceCriterion).shouldAccept(any());
+  }
+
   private void setupBasicMocks(TestSolution partialSolution, TestSolution candidateSolution) {
     when(mockStoppingCriterion.shouldStop(any())).thenReturn(false).thenReturn(true);
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
