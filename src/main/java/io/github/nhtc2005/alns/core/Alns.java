@@ -67,6 +67,8 @@ public final class Alns<S extends Solution<S>> {
     this.collectStatistics = collectStatistics;
     this.visitedSolutionTracker =
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
+    this.operatorSelector.validateOperatorCounts(
+        this.destroyOperators.size(), this.repairOperators.size());
   }
 
   public static <S extends Solution<S>> Builder<S> builder() {
@@ -84,6 +86,7 @@ public final class Alns<S extends Solution<S>> {
     if (!initialSolution.isFeasible()) {
       throw new IllegalArgumentException("initialSolution must be feasible.");
     }
+    validateObjective(initialSolution, "initialSolution");
 
     operatorSelector.reset();
     acceptanceCriterion.reset();
@@ -135,6 +138,7 @@ public final class Alns<S extends Solution<S>> {
                   .get(operatorSelection.repairOperatorIndex())
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
+      validateObjective(candidateSolution, "candidateSolution");
 
       SolutionStatus status;
       boolean isRewardEligible = true;
@@ -155,10 +159,12 @@ public final class Alns<S extends Solution<S>> {
         status = SolutionStatus.BEST;
         visitedSolutionTracker.recordIfNew(candidateSolution);
       } else if (isFeasible && isAccepted) {
-        int comparisonToCurrent = candidateSolution.compareTo(currentSolution);
-        status = comparisonToCurrent < 0 ? SolutionStatus.BETTER : SolutionStatus.ACCEPTED;
+        double candidateObjective = candidateSolution.getObjectiveValue();
+        double currentObjective = currentSolution.getObjectiveValue();
+        status =
+            candidateObjective < currentObjective ? SolutionStatus.BETTER : SolutionStatus.ACCEPTED;
         boolean isNew = visitedSolutionTracker.recordIfNew(candidateSolution);
-        isRewardEligible = isNew && comparisonToCurrent != 0;
+        isRewardEligible = isNew && candidateObjective != currentObjective;
         currentSolution = candidateSolution;
       } else {
         status = SolutionStatus.REJECTED;
@@ -182,6 +188,12 @@ public final class Alns<S extends Solution<S>> {
     return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
   }
 
+  private static void validateObjective(Solution<?> solution, String name) {
+    if (!Double.isFinite(solution.getObjectiveValue())) {
+      throw new IllegalArgumentException(name + " objective must be finite.");
+    }
+  }
+
   private static <T> List<T> copyNonEmpty(List<T> values, String name) {
     Objects.requireNonNull(values, name + " must not be null.");
     if (values.isEmpty()) {
@@ -195,7 +207,7 @@ public final class Alns<S extends Solution<S>> {
   }
 
   private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S currentSolution) {
-    return candidateSolution.compareTo(currentSolution) < 0;
+    return candidateSolution.getObjectiveValue() < currentSolution.getObjectiveValue();
   }
 
   private void validateOperatorSelection(OperatorSelection operatorSelection) {

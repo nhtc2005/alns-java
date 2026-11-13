@@ -33,9 +33,6 @@ public final class AlnsStatistics {
   }
 
   void collectInitial(double currentObjectiveValue, double bestObjectiveValue) {
-    if (!enabled) {
-      return;
-    }
     currentObjectiveValues.add(currentObjectiveValue);
     bestObjectiveValues.add(bestObjectiveValue);
   }
@@ -46,10 +43,6 @@ public final class AlnsStatistics {
       double currentObjectiveValue,
       double bestObjectiveValue,
       long iterationRuntimeNanos) {
-    if (!enabled) {
-      return;
-    }
-
     int statusIndex = status.ordinal();
     long[] destroyCounts = destroyOperatorCounts[operatorSelection.destroyOperatorIndex()];
     long[] repairCounts = repairOperatorCounts[operatorSelection.repairOperatorIndex()];

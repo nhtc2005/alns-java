@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,47 +24,98 @@ class RouletteWheelOperatorSelectorTest {
   @CsvSource({"0, 2", "-1, 2", "2, 0", "2, -1"})
   void constructor_ShouldThrowException_WhenOperatorCountsAreInvalid(
       int destroyOperatorCount, int repairOperatorCount) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new RouletteWheelOperatorSelector<TestSolution>(
-                destroyOperatorCount, repairOperatorCount, new double[] {7, 3, 1, 0}, 0.5));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new RouletteWheelOperatorSelector<TestSolution>(
+                    destroyOperatorCount, repairOperatorCount, new double[] {7, 3, 1, 0}, 0.5));
+
+    assertEquals("Operator counts must be positive.", exception.getMessage());
   }
 
   @Test
   void constructor_ShouldThrowException_WhenScoresAreNull() {
-    assertThrows(
-        NullPointerException.class,
-        () -> new RouletteWheelOperatorSelector<TestSolution>(2, 2, null, 0.5));
+    NullPointerException exception =
+        assertThrows(
+            NullPointerException.class,
+            () -> new RouletteWheelOperatorSelector<TestSolution>(2, 2, null, 0.5));
+
+    assertEquals("scores must not be null.", exception.getMessage());
   }
 
   @ParameterizedTest
   @ValueSource(ints = {0, 3, 5})
   void constructor_ShouldThrowException_WhenScoreCountIsNotFour(int scoreCount) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> new RouletteWheelOperatorSelector<TestSolution>(2, 2, new double[scoreCount], 0.5));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new RouletteWheelOperatorSelector<TestSolution>(2, 2, new double[scoreCount], 0.5));
+
+    assertEquals("scores must contain exactly four values.", exception.getMessage());
   }
 
   @ParameterizedTest
   @ValueSource(doubles = {-1, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
   void constructor_ShouldThrowException_WhenScoreIsInvalid(double score) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new RouletteWheelOperatorSelector<TestSolution>(
-                2, 2, new double[] {7, 3, 1, score}, 0.5));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new RouletteWheelOperatorSelector<TestSolution>(
+                    2, 2, new double[] {7, 3, 1, score}, 0.5));
+
+    assertEquals("scores must be finite and non-negative.", exception.getMessage());
   }
 
   @ParameterizedTest
   @ValueSource(
       doubles = {-0.1, 1.1, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
   void constructor_ShouldThrowException_WhenDecayIsInvalid(double decay) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new RouletteWheelOperatorSelector<TestSolution>(
-                2, 2, new double[] {7, 3, 1, 0}, decay));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new RouletteWheelOperatorSelector<TestSolution>(
+                    2, 2, new double[] {7, 3, 1, 0}, decay));
+
+    assertEquals("decay must be finite and in the range [0.0, 1.0].", exception.getMessage());
+  }
+
+  @Test
+  void constructor_ShouldInitializeWeights_WhenResetIsOverridden() {
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        assertDoesNotThrow(
+            () ->
+                new RouletteWheelOperatorSelector<TestSolution>(
+                    2, 2, new double[] {7, 3, 1, 0}, 0.5) {
+                  @Override
+                  public void reset() {
+                    throw new IllegalStateException("reset must not be called by the constructor.");
+                  }
+                });
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
+
+    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
+  }
+
+  @Test
+  void getScores_ShouldPreserveConfiguredScores_WhenCallerModifiesInputOrReturnedArray() {
+    double[] scores = {7, 3, 1, 0};
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        new RouletteWheelOperatorSelector<>(2, 2, scores, 0.0);
+    scores[0] = 0;
+    assertArrayEquals(new double[] {7, 3, 1, 0}, selector.getScores());
+    selector.update(feedback(0, 0, SolutionStatus.BEST));
+    assertArrayEquals(new double[] {7, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {7, 1}, selector.getRepairOperatorWeights());
+
+    double[] returnedScores = selector.getScores();
+    returnedScores[0] = 0;
+    selector.update(feedback(1, 1, SolutionStatus.BEST));
+    assertArrayEquals(new double[] {7, 7}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {7, 7}, selector.getRepairOperatorWeights());
   }
 
   @Test
@@ -76,6 +128,69 @@ class RouletteWheelOperatorSelectorTest {
     assertEquals(2, selector.getRepairOperatorCount());
     assertEquals(0.5, selector.getDecay());
     assertEquals(new OperatorSelection(0, 1), selector.select(context()));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"0, 0.0, 1", "1, 0.999, 0"})
+  void select_ShouldSkipZeroWeightOperators_WhenOtherWeightsArePositive(
+      int zeroWeightIndex, double randomValue, int expectedIndex) {
+    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
+    selector.update(feedback(zeroWeightIndex, zeroWeightIndex, SolutionStatus.REJECTED));
+    when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
+
+    assertEquals(new OperatorSelection(expectedIndex, expectedIndex), selector.select(context()));
+  }
+
+  @Test
+  void select_ShouldFallBackToUniformSelection_WhenAllWeightsAreZero() {
+    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
+    selector.update(feedback(0, 0, SolutionStatus.REJECTED));
+    selector.update(feedback(1, 1, SolutionStatus.REJECTED));
+    when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
+
+    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
+    verify(mockRandomGenerator, never()).nextDouble();
+  }
+
+  @Test
+  void select_ShouldAvoidOverflow_WhenWeightsAreVeryLarge() {
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        new RouletteWheelOperatorSelector<>(2, 2, new double[] {Double.MAX_VALUE, 3, 1, 0}, 0.0);
+    selector.update(feedback(0, 0, SolutionStatus.BEST));
+    selector.update(feedback(1, 1, SolutionStatus.BEST));
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.25, 0.75);
+
+    assertEquals(new OperatorSelection(0, 1), selector.select(context()));
+  }
+
+  @Test
+  void select_ShouldReturnLastPositiveIndex_WhenRandomValueReachesTotalWeight() {
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        new RouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0);
+    selector.update(feedback(1, 1, SolutionStatus.BEST));
+    selector.update(feedback(2, 2, SolutionStatus.REJECTED));
+    // Deliberately outside [0.0, 1.0) to exercise the defensive fallback.
+    when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
+
+    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
+  }
+
+  @Test
+  void select_ShouldUseInternalWeights_WhenCallerModifiesReturnedArrays() {
+    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
+    selector.update(feedback(1, 0, SolutionStatus.BEST));
+
+    double[] destroyWeights = selector.getDestroyOperatorWeights();
+    double[] repairWeights = selector.getRepairOperatorWeights();
+    assertArrayEquals(new double[] {1, 4}, destroyWeights);
+    assertArrayEquals(new double[] {4, 1}, repairWeights);
+    destroyWeights[1] = 0;
+    repairWeights[0] = 0;
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
+
+    assertArrayEquals(new double[] {1, 4}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getRepairOperatorWeights());
+    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
   }
 
   @ParameterizedTest
@@ -104,7 +219,9 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"BETTER", "ACCEPTED"})
+  @EnumSource(
+      value = SolutionStatus.class,
+      names = {"BETTER", "ACCEPTED"})
   void update_ShouldDecayOnlySelectedWeights_WhenFeedbackIsNotRewardEligible(
       SolutionStatus status) {
     RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
@@ -119,7 +236,7 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @Test
-  void update_ShouldApplyConfiguredRejectedScore_WhenUsingLegacyFeedbackConstructor() {
+  void update_ShouldApplyConfiguredRejectedScore_WhenRejectedScoreIsPositive() {
     RouletteWheelOperatorSelector<TestSolution> selector =
         new RouletteWheelOperatorSelector<>(2, 2, new double[] {7, 3, 1, 2}, 0.5);
 
@@ -129,136 +246,12 @@ class RouletteWheelOperatorSelectorTest {
     assertArrayEquals(new double[] {1.5, 1}, selector.getRepairOperatorWeights());
   }
 
-  @ParameterizedTest
-  @CsvSource({"0, 0.0, 1", "1, 0.999, 0"})
-  void select_ShouldSkipZeroWeightOperators_WhenOtherWeightsArePositive(
-      int zeroWeightIndex, double randomValue, int expectedIndex) {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
-    selector.update(feedback(zeroWeightIndex, zeroWeightIndex, SolutionStatus.REJECTED));
-    when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
-
-    assertEquals(new OperatorSelection(expectedIndex, expectedIndex), selector.select(context()));
-  }
-
-  @Test
-  void select_ShouldFallBackToUniformSelection_WhenAllWeightsAreZero() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
-    selector.update(feedback(0, 0, SolutionStatus.REJECTED));
-    selector.update(feedback(1, 1, SolutionStatus.REJECTED));
-    when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
-
-    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
-    verify(mockRandomGenerator, never()).nextDouble();
-  }
-
-  @ParameterizedTest
-  @CsvSource({"0.25, 0", "0.75, 1"})
-  void select_ShouldAvoidOverflow_WhenWeightsAreVeryLarge(double randomValue, int expectedIndex) {
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        new RouletteWheelOperatorSelector<>(2, 2, new double[] {Double.MAX_VALUE, 3, 1, 0}, 0.0);
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    selector.update(feedback(1, 1, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(randomValue);
-
-    assertEquals(new OperatorSelection(expectedIndex, expectedIndex), selector.select(context()));
-  }
-
-  @Test
-  void select_ShouldReturnLastPositiveIndex_WhenRandomValueReachesTotalWeight() {
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        new RouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0);
-    selector.update(feedback(1, 1, SolutionStatus.BEST));
-    selector.update(feedback(2, 2, SolutionStatus.REJECTED));
-    when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
-
-    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
-  }
-
   @Test
   void update_ShouldPreserveWeights_WhenDecayEqualsOne() {
     RouletteWheelOperatorSelector<TestSolution> selector = selector(1.0);
     selector.update(feedback(0, 0, SolutionStatus.REJECTED));
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
 
-    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
-  }
-
-  @Test
-  void constructor_ShouldCopyScores_WhenCallerMutatesOriginalArray() {
-    double[] scores = {7, 3, 1, 0};
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        new RouletteWheelOperatorSelector<>(2, 2, scores, 0.0);
-    scores[0] = 0;
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
-  }
-
-  @Test
-  void constructor_ShouldInitializeWeights_WhenResetIsOverridden() {
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        assertDoesNotThrow(
-            () ->
-                new RouletteWheelOperatorSelector<TestSolution>(
-                    2, 2, new double[] {7, 3, 1, 0}, 0.5) {
-                  @Override
-                  public void reset() {
-                    throw new IllegalStateException("reset must not be called by the constructor.");
-                  }
-                });
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
-  }
-
-  @Test
-  void getScores_ShouldReturnCopy_WhenCallerModifiesArray() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
-
-    double[] scores = selector.getScores();
-    assertArrayEquals(new double[] {7, 3, 1, 0}, scores);
-    scores[0] = 0;
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
-  }
-
-  @Test
-  void getDestroyOperatorWeights_ShouldReturnCopy_WhenCallerModifiesArray() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
-    selector.update(feedback(1, 0, SolutionStatus.BEST));
-
-    double[] destroyOperatorWeights = selector.getDestroyOperatorWeights();
-    assertArrayEquals(new double[] {1.0, 4.0}, destroyOperatorWeights);
-    destroyOperatorWeights[1] = 0.0;
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
-  }
-
-  @Test
-  void getRepairOperatorWeights_ShouldReturnCopy_WhenCallerModifiesArray() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
-    selector.update(feedback(1, 0, SolutionStatus.BEST));
-
-    double[] repairOperatorWeights = selector.getRepairOperatorWeights();
-    assertArrayEquals(new double[] {4.0, 1.0}, repairOperatorWeights);
-    repairOperatorWeights[0] = 0.0;
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
-
-    assertEquals(new OperatorSelection(1, 0), selector.select(context()));
-  }
-
-  @Test
-  void reset_ShouldRestoreUniformWeights_WhenSelectorIsReused() {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
-    selector.update(feedback(0, 0, SolutionStatus.BEST));
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
-    selector.reset();
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
   }
 
@@ -274,6 +267,17 @@ class RouletteWheelOperatorSelectorTest {
             selector.update(
                 feedback(destroyOperatorIndex, repairOperatorIndex, SolutionStatus.BEST)));
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
+    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
+  }
+
+  @Test
+  void reset_ShouldRestoreUniformWeights_WhenSelectorIsReused() {
+    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.0);
+    selector.update(feedback(0, 0, SolutionStatus.BEST));
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
+
+    assertEquals(new OperatorSelection(0, 0), selector.select(context()));
+    selector.reset();
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
   }
 

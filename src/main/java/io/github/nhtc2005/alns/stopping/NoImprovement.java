@@ -19,7 +19,8 @@ public class NoImprovement<S extends Solution<S>> implements StoppingCriterion<S
 
   @Override
   public boolean shouldStop(StoppingContext<S> context) {
-    if (bestSolution == null || context.bestSolution().compareTo(bestSolution) < 0) {
+    if (bestSolution == null
+        || context.bestSolution().getObjectiveValue() < bestSolution.getObjectiveValue()) {
       bestSolution =
           Objects.requireNonNull(
               context.bestSolution().copy(), "Solution.copy() must not return null.");

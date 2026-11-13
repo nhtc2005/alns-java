@@ -10,4 +10,6 @@ public interface OperatorSelector<S extends Solution<S>> {
   default void update(OperatorSelectionFeedback<S> feedback) {}
 
   default void reset() {}
+
+  default void validateOperatorCounts(int destroyOperatorCount, int repairOperatorCount) {}
 }

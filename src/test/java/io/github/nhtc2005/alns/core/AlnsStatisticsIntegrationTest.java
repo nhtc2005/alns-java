@@ -19,6 +19,7 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,35 +32,29 @@ class AlnsStatisticsIntegrationTest {
   @Mock private OperatorSelector<TestSolution> mockOperatorSelector;
   @Mock private AcceptanceCriterion<TestSolution> mockAcceptanceCriterion;
 
-  @Test
-  void solve_ShouldLeaveStatisticsDisabled_WhenBuilderUsesDefaultOrExplicitFalse() {
-    Alns.Builder<TestSolution> builder =
-        Alns.<TestSolution>builder()
-            .randomGenerator(new Random(1))
-            .addDestroyOperator((solution, randomGenerator) -> solution)
-            .addRepairOperator((solution, randomGenerator) -> solution);
-
-    AlnsResult<TestSolution> defaultResult =
-        builder.build().solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-    AlnsResult<TestSolution> disabledResult =
-        builder
-            .collectStatistics(true)
-            .collectStatistics(false)
-            .build()
-            .solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-
-    assertDisabledStatistics(defaultResult);
-    assertDisabledStatistics(disabledResult);
-  }
-
-  @Test
-  void solve_ShouldLeaveStatisticsDisabled_WhenUsingExistingConstructor() {
-    Alns<TestSolution> alns =
-        new Alns<TestSolution>(
-            new Random(1),
-            List.of((solution, randomGenerator) -> solution),
-            List.of((solution, randomGenerator) -> solution),
-            context -> new OperatorSelection(0, 0));
+  @ParameterizedTest
+  @EnumSource(DisabledConfiguration.class)
+  void solve_ShouldLeaveStatisticsDisabled_WhenCollectionIsNotEnabled(
+      DisabledConfiguration configuration) {
+    Alns<TestSolution> alns;
+    if (configuration == DisabledConfiguration.CONSTRUCTOR_DEFAULT) {
+      alns =
+          new Alns<TestSolution>(
+              new Random(1),
+              List.of((solution, randomGenerator) -> solution),
+              List.of((solution, randomGenerator) -> solution),
+              context -> new OperatorSelection(0, 0));
+    } else {
+      Alns.Builder<TestSolution> builder =
+          Alns.<TestSolution>builder()
+              .randomGenerator(new Random(1))
+              .addDestroyOperator((solution, randomGenerator) -> solution)
+              .addRepairOperator((solution, randomGenerator) -> solution);
+      if (configuration == DisabledConfiguration.BUILDER_EXPLICIT_FALSE) {
+        builder.collectStatistics(true).collectStatistics(false);
+      }
+      alns = builder.build();
+    }
 
     AlnsResult<TestSolution> result =
         alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
@@ -224,7 +219,7 @@ class AlnsStatisticsIntegrationTest {
   }
 
   @Test
-  void solve_ShouldRecordActualBestObjectiveValue_WhenCompareToUsesDifferentRanking() {
+  void solve_ShouldMinimizeObjective_WhenOtherSolutionDataHasDifferentOrdering() {
     Alns<RankedSolution> alns =
         Alns.<RankedSolution>builder()
             .randomGenerator(new Random(1))
@@ -240,28 +235,9 @@ class AlnsStatisticsIntegrationTest {
     AlnsResult<RankedSolution> result =
         alns.solve(new RankedSolution(10, 10.0), context -> true, new MaxIterations<>(2));
 
-    assertEquals(9, result.bestSolution().rank());
+    assertEquals(11, result.bestSolution().rank());
     assertEquals(List.of(10.0, 100.0, 1.0), result.statistics().getCurrentObjectiveValues());
-    assertEquals(List.of(10.0, 100.0, 100.0), result.statistics().getBestObjectiveValues());
-  }
-
-  @Test
-  void solve_ShouldAvoidReadingObjectiveValues_WhenStatisticsAreDisabled() {
-    TestSolution initialSolution = mock(TestSolution.class);
-    when(initialSolution.isFeasible()).thenReturn(true);
-    when(initialSolution.copy()).thenReturn(initialSolution);
-    Alns<TestSolution> alns =
-        Alns.<TestSolution>builder()
-            .randomGenerator(new Random(1))
-            .addDestroyOperator((solution, randomGenerator) -> solution)
-            .addRepairOperator((solution, randomGenerator) -> solution)
-            .build();
-
-    AlnsResult<TestSolution> result =
-        alns.solve(initialSolution, context -> true, new MaxIterations<>(2));
-
-    assertDisabledStatistics(result);
-    verify(initialSolution, never()).getObjectiveValue();
+    assertEquals(List.of(10.0, 10.0, 1.0), result.statistics().getBestObjectiveValues());
   }
 
   @Test
@@ -316,6 +292,12 @@ class AlnsStatisticsIntegrationTest {
     }
   }
 
+  private enum DisabledConfiguration {
+    BUILDER_DEFAULT,
+    BUILDER_EXPLICIT_FALSE,
+    CONSTRUCTOR_DEFAULT
+  }
+
   private record RankedSolution(int rank, double objectiveValue)
       implements Solution<RankedSolution> {
 
@@ -332,11 +314,6 @@ class AlnsStatisticsIntegrationTest {
     @Override
     public boolean isFeasible() {
       return true;
-    }
-
-    @Override
-    public int compareTo(RankedSolution other) {
-      return Integer.compare(rank, other.rank);
     }
   }
 }
