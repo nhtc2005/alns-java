@@ -51,6 +51,8 @@
         <mockito.version>5.24.0</mockito.version>
         <maven.compiler.plugin.version>3.16.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.6.1</maven.surefire.plugin.version>
+        <maven.javadoc.plugin.version>3.11.2</maven.javadoc.plugin.version>
+        <mathjax.version>3.2.2</mathjax.version>
         <jacoco.maven.plugin.version>0.8.16</jacoco.maven.plugin.version>
         <spotless.maven.plugin.version>3.10.4</spotless.maven.plugin.version>
         <google.java.format.version>1.28.0</google.java.format.version>
@@ -80,6 +82,18 @@
 
     <build>
         <plugins>
+            <plugin>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven.javadoc.plugin.version}</version>
+                <configuration>
+                    <additionalOptions>
+                        <additionalOption>--allow-script-in-comments</additionalOption>
+                    </additionalOptions>
+                    <bottom><![CDATA[
+                        <script defer src="https://cdn.jsdelivr.net/npm/mathjax@${mathjax.version}/es5/tex-chtml.js"></script>
+                    ]]></bottom>
+                </configuration>
+            </plugin>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven.compiler.plugin.version}</version>

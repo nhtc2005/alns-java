@@ -3,10 +3,27 @@ package io.github.nhtc2005.alns.acceptance;
 import io.github.nhtc2005.alns.model.Solution;
 import java.util.Objects;
 
+/**
+ * Accepts candidates probabilistically using simulated annealing for minimization.
+ *
+ * <p>For objective difference \(\Delta = f(s_{\mathrm{candidate}}) - f(s_{\mathrm{current}})\) and
+ * temperature \(T\), the acceptance probability is:
+ *
+ * <p>\[ P(\mathrm{accept}) = \exp\!\left(-\frac{\max(0, \Delta)}{T}\right). \]
+ *
+ * <p>Each evaluation uses the current temperature, then cools it, regardless of acceptance.
+ * Temperature is bounded below by the configured end temperature; reaching it does not stop the
+ * search. Instances maintain mutable temperature state and must not be shared by concurrent runs.
+ *
+ * @param <S> the solution type
+ */
 public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
 
+  /** Defines how temperature changes after each acceptance evaluation. */
   public enum CoolingMethod {
+    /** Subtracts a fixed step: \(T_{k+1} = \max(T_{\mathrm{end}}, T_k - d)\). */
     LINEAR,
+    /** Multiplies by a fixed factor: \(T_{k+1} = \max(T_{\mathrm{end}}, T_k r)\). */
     EXPONENTIAL,
   }
 
@@ -17,10 +34,31 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
 
   private double temperature;
 
+  /**
+   * Creates a criterion with exponential cooling.
+   *
+   * @param startTemperature the finite positive initial temperature; at least {@code
+   *     endTemperature}
+   * @param endTemperature the finite positive minimum temperature
+   * @param step the cooling factor in {@code (0, 1)}
+   * @throws IllegalArgumentException if a temperature or step is invalid
+   */
   public SimulatedAnnealing(double startTemperature, double endTemperature, double step) {
     this(startTemperature, endTemperature, step, CoolingMethod.EXPONENTIAL);
   }
 
+  /**
+   * Creates a criterion with the specified cooling schedule.
+   *
+   * @param startTemperature the finite positive initial temperature; at least {@code
+   *     endTemperature}
+   * @param endTemperature the finite positive minimum temperature
+   * @param step the finite positive decrement for linear cooling, or factor in {@code (0, 1)} for
+   *     exponential cooling
+   * @param method the cooling method
+   * @throws IllegalArgumentException if a temperature or step is invalid
+   * @throws NullPointerException if {@code method} is null
+   */
   public SimulatedAnnealing(
       double startTemperature, double endTemperature, double step, CoolingMethod method) {
     this.method = Objects.requireNonNull(method, "method must not be null.");
@@ -51,6 +89,11 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
     this.temperature = startTemperature;
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Uses the temperature before cooling and advances the cooling schedule once per call.
+   */
   @Override
   public boolean shouldAccept(AcceptanceContext<S> context) {
     double currentObjectiveValue = context.currentSolution().getObjectiveValue();
@@ -66,37 +109,97 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
     return probability >= context.randomGenerator().nextDouble();
   }
 
+  /** Restores the temperature to its configured initial value. */
   @Override
   public void reset() {
     temperature = startTemperature;
   }
 
+  /**
+   * Returns the configured initial temperature.
+   *
+   * @return the configured initial temperature
+   */
   public double getStartTemperature() {
     return startTemperature;
   }
 
+  /**
+   * Returns the configured minimum temperature.
+   *
+   * @return the configured minimum temperature
+   */
   public double getEndTemperature() {
     return endTemperature;
   }
 
+  /**
+   * Returns the linear decrement or exponential cooling factor.
+   *
+   * @return the linear decrement or exponential cooling factor
+   */
   public double getStep() {
     return step;
   }
 
+  /**
+   * Returns the configured cooling method.
+   *
+   * @return the configured cooling method
+   */
   public CoolingMethod getMethod() {
     return method;
   }
 
+  /**
+   * Returns the temperature for the next acceptance evaluation.
+   *
+   * @return the temperature for the next acceptance evaluation
+   */
   public double getTemperature() {
     return temperature;
   }
 
+  /**
+   * Fits exponential cooling with an end temperature of {@code 1.0}.
+   *
+   * <p>See {@link #autofit(double, double, double, long, double, CoolingMethod)} for the fitting
+   * formulas and validation rules.
+   *
+   * @param <S> the solution type
+   * @param initialObjectiveValue the finite non-zero initial objective; may be negative
+   * @param worse the worsening fraction in {@code (0, 1]}; {@code 0.1} means 10% of the objective
+   *     magnitude
+   * @param acceptProbability the initial probability of accepting that worsening, in {@code (0, 1)}
+   * @param numIterations the positive number of cooling updates
+   * @return a criterion initialized with the fitted temperature and step
+   * @throws IllegalArgumentException if inputs are invalid or the fitted temperature or step is
+   *     invalid
+   */
   public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
       double initialObjectiveValue, double worse, double acceptProbability, long numIterations) {
     return autofit(
         initialObjectiveValue, worse, acceptProbability, numIterations, CoolingMethod.EXPONENTIAL);
   }
 
+  /**
+   * Fits the specified cooling method with an end temperature of {@code 1.0}.
+   *
+   * <p>See {@link #autofit(double, double, double, long, double, CoolingMethod)} for the fitting
+   * formulas and validation rules.
+   *
+   * @param <S> the solution type
+   * @param initialObjectiveValue the finite non-zero initial objective; may be negative
+   * @param worse the worsening fraction in {@code (0, 1]}; {@code 0.1} means 10% of the objective
+   *     magnitude
+   * @param acceptProbability the initial probability of accepting that worsening, in {@code (0, 1)}
+   * @param numIterations the positive number of cooling updates
+   * @param method the cooling method
+   * @return a criterion initialized with the fitted temperature and step
+   * @throws IllegalArgumentException if inputs are invalid or the fitted temperature or step is
+   *     invalid
+   * @throws NullPointerException if {@code method} is null
+   */
   public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
       double initialObjectiveValue,
       double worse,
@@ -106,6 +209,23 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
     return autofit(initialObjectiveValue, worse, acceptProbability, numIterations, 1.0, method);
   }
 
+  /**
+   * Fits exponential cooling with the specified end temperature.
+   *
+   * <p>See {@link #autofit(double, double, double, long, double, CoolingMethod)} for the fitting
+   * formulas and validation rules.
+   *
+   * @param <S> the solution type
+   * @param initialObjectiveValue the finite non-zero initial objective; may be negative
+   * @param worse the worsening fraction in {@code (0, 1]}; {@code 0.1} means 10% of the objective
+   *     magnitude
+   * @param acceptProbability the initial probability of accepting that worsening, in {@code (0, 1)}
+   * @param numIterations the positive number of cooling updates
+   * @param endTemperature the finite positive minimum temperature
+   * @return a criterion initialized with the fitted temperature and step
+   * @throws IllegalArgumentException if inputs are invalid or the fitted temperature or step is
+   *     invalid
+   */
   public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
       double initialObjectiveValue,
       double worse,
@@ -121,6 +241,37 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
         CoolingMethod.EXPONENTIAL);
   }
 
+  /**
+   * Fits a cooling schedule to an initial acceptance probability.
+   *
+   * <p>For initial objective \(f_0\), worsening fraction \(w\), and target probability \(p\):
+   *
+   * <p>\[ \Delta = w|f_0|, \qquad T_0 = -\frac{\Delta}{\ln p}. \]
+   *
+   * <p>The candidate objective used for fitting is \(f_0 + \Delta\), including when \(f_0\) is
+   * negative. A zero initial objective cannot define a relative worsening and is rejected.
+   *
+   * <p>For \(N\) evaluations and minimum temperature \(T_e\), the fitted step is:
+   *
+   * <p>\[ d = \frac{T_0 - T_e}{N} \quad\text{(linear)}, \qquad r =
+   * \left(\frac{T_e}{T_0}\right)^{1/N} \quad\text{(exponential)}. \]
+   *
+   * <p>The temperature reaches \(T_e\) after \(N\) updates, subject to floating-point rounding. The
+   * fitted \(T_0\) must be strictly greater than \(T_e\).
+   *
+   * @param <S> the solution type
+   * @param initialObjectiveValue the finite non-zero initial objective; may be negative
+   * @param worse the worsening fraction in {@code (0, 1]}; {@code 0.1} means 10% of the objective
+   *     magnitude
+   * @param acceptProbability the initial probability of accepting that worsening, in {@code (0, 1)}
+   * @param numIterations the positive number of cooling updates
+   * @param endTemperature the finite positive minimum temperature
+   * @param method the cooling method
+   * @return a criterion initialized with the fitted temperature and step
+   * @throws IllegalArgumentException if inputs are invalid or the fitted temperature or step is
+   *     invalid
+   * @throws NullPointerException if {@code method} is null
+   */
   public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
       double initialObjectiveValue,
       double worse,

@@ -5,6 +5,19 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
 
+/**
+ * Selects destroy and repair operators independently in proportion to their weights.
+ *
+ * <p>For each operator group, \(P(i) = w_i / \sum_j w_j\). All weights start at 1; if all weights
+ * in a group are zero, selection is uniform. Feedback updates only the selected weights:
+ *
+ * <p>\[ w_i' = \theta w_i + (1 - \theta) s. \]
+ *
+ * <p>Here \(\theta\) is {@code decay}, and \(s\) is the outcome score, or zero when reward is
+ * ineligible. Instances hold mutable weights and must not be shared by concurrent runs.
+ *
+ * @param <S> the solution type
+ */
 public class RouletteWheelOperatorSelector<S extends Solution<S>> implements OperatorSelector<S> {
 
   private final double[] scores;
@@ -12,6 +25,17 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
   private final double[] destroyOperatorWeights;
   private final double[] repairOperatorWeights;
 
+  /**
+   * Creates a selector for fixed operator counts.
+   *
+   * @param destroyOperatorCount the positive number of destroy operators
+   * @param repairOperatorCount the positive number of repair operators
+   * @param scores four finite non-negative scores in BEST, BETTER, ACCEPTED, REJECTED order; copied
+   *     on construction
+   * @param decay the finite weight retention factor in {@code [0, 1]}
+   * @throws IllegalArgumentException if any numeric parameter or score count is invalid
+   * @throws NullPointerException if {@code scores} is null
+   */
   public RouletteWheelOperatorSelector(
       int destroyOperatorCount, int repairOperatorCount, double[] scores, double decay) {
     if (destroyOperatorCount <= 0 || repairOperatorCount <= 0) {
@@ -40,6 +64,11 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @throws IllegalArgumentException if either count differs from this selector's configured count
+   */
   @Override
   public void validateOperatorCounts(int destroyOperatorCount, int repairOperatorCount) {
     if (destroyOperatorCount != getDestroyOperatorCount()
@@ -56,6 +85,11 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
         select(repairOperatorWeights, context.randomGenerator()));
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @throws IndexOutOfBoundsException if either selected operator index is out of range
+   */
   @Override
   public void update(OperatorSelectionFeedback<S> feedback) {
     int destroyOperatorIndex =
@@ -81,32 +115,63 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
         decay * repairOperatorWeights[repairOperatorIndex] + (1 - decay) * score;
   }
 
+  /** Restores all operator weights to 1. */
   @Override
   public void reset() {
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
 
+  /**
+   * Returns the configured number of destroy operators.
+   *
+   * @return the configured number of destroy operators
+   */
   public int getDestroyOperatorCount() {
     return destroyOperatorWeights.length;
   }
 
+  /**
+   * Returns the configured number of repair operators.
+   *
+   * @return the configured number of repair operators
+   */
   public int getRepairOperatorCount() {
     return repairOperatorWeights.length;
   }
 
+  /**
+   * Returns a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order.
+   *
+   * @return a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order
+   */
   public double[] getScores() {
     return scores.clone();
   }
 
+  /**
+   * Returns the configured weight retention factor.
+   *
+   * @return the configured weight retention factor
+   */
   public double getDecay() {
     return decay;
   }
 
+  /**
+   * Returns a copy of destroy weights indexed by operator.
+   *
+   * @return a copy of destroy weights indexed by operator
+   */
   public double[] getDestroyOperatorWeights() {
     return destroyOperatorWeights.clone();
   }
 
+  /**
+   * Returns a copy of repair weights indexed by operator.
+   *
+   * @return a copy of repair weights indexed by operator
+   */
   public double[] getRepairOperatorWeights() {
     return repairOperatorWeights.clone();
   }
