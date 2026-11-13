@@ -358,14 +358,14 @@ class SimulatedAnnealingTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"0.0", "-10.0", "NaN", "Infinity", "-Infinity"})
+  @CsvSource({"0.0", "-0.0", "NaN", "Infinity", "-Infinity"})
   void autofit_ShouldThrowException_WhenInitialObjectiveValueIsInvalid(double initialValue) {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
             () -> SimulatedAnnealing.autofit(initialValue, 0.1, 0.5, 1000));
     assertEquals(
-        "initialObjectiveValue must be finite and strictly positive.", exception.getMessage());
+        "initialObjectiveValue must be finite and non-zero.", exception.getMessage());
   }
 
   @ParameterizedTest
@@ -407,8 +407,71 @@ class SimulatedAnnealingTest {
             IllegalArgumentException.class,
             () -> SimulatedAnnealing.autofit(initialValue, worse, prob, 1000));
     assertEquals(
-        "Autofit requires a finite startTemperature greater than or equal to 1.0. "
-            + "Use the constructor to configure a different endTemperature.",
+        "Autofit requires a finite startTemperature strictly greater than endTemperature.",
         exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @EnumSource(SimulatedAnnealing.CoolingMethod.class)
+  void autofit_ShouldFitNegativeObjectiveAndCoolToConfiguredEnd(
+      SimulatedAnnealing.CoolingMethod method) {
+    SimulatedAnnealing<TestSolution> sa =
+        SimulatedAnnealing.autofit(-0.1, 0.1, 0.5, 20, 0.001, method);
+    double start = -0.01 / Math.log(0.5);
+    assertEquals(start, sa.getStartTemperature(), 1e-15);
+    assertEquals(0.001, sa.getEndTemperature());
+    assertEquals(method, sa.getMethod());
+
+    AcceptanceContext<TestSolution> context =
+        new AcceptanceContext<>(
+            0,
+            0,
+            new TestSolution(-0.1),
+            new TestSolution(-0.1),
+            new TestSolution(-0.09),
+            mockRandomGenerator);
+    when(mockRandomGenerator.nextDouble()).thenReturn(0.49, 0.51);
+    assertTrue(sa.shouldAccept(context));
+    sa.reset();
+    assertFalse(sa.shouldAccept(context));
+    for (int i = 1; i < 20; i++) {
+      sa.shouldAccept(context);
+    }
+    assertEquals(0.001, sa.getTemperature(), 1e-15);
+    sa.shouldAccept(context);
+    assertEquals(0.001, sa.getTemperature(), 1e-15);
+  }
+
+  @Test
+  void autofit_ShouldUseExponentialCooling_WhenOnlyEndTemperatureIsSpecified() {
+    SimulatedAnnealing<TestSolution> sa =
+        SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, 0.01);
+    assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
+    assertEquals(0.01, sa.getEndTemperature());
+  }
+
+  @ParameterizedTest
+  @CsvSource({"0.0", "-1.0", "NaN", "Infinity", "-Infinity"})
+  void autofit_ShouldRejectInvalidEndTemperature(double endTemperature) {
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, endTemperature));
+    assertEquals("endTemperature must be finite and strictly positive.", exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @EnumSource(SimulatedAnnealing.CoolingMethod.class)
+  void autofit_ShouldRejectStartAtOrBelowEnd(SimulatedAnnealing.CoolingMethod method) {
+    double start = -10.0 / Math.log(0.5);
+    for (double end : new double[] {start, start * 2}) {
+      IllegalArgumentException exception =
+          assertThrows(
+              IllegalArgumentException.class,
+              () -> SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, end, method));
+      assertEquals(
+          "Autofit requires a finite startTemperature strictly greater than endTemperature.",
+          exception.getMessage());
+    }
   }
 }

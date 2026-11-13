@@ -103,11 +103,36 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
       double acceptProbability,
       long numIterations,
       CoolingMethod method) {
+    return autofit(initialObjectiveValue, worse, acceptProbability, numIterations, 1.0, method);
+  }
+
+  public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
+      double initialObjectiveValue,
+      double worse,
+      double acceptProbability,
+      long numIterations,
+      double endTemperature) {
+    return autofit(
+        initialObjectiveValue,
+        worse,
+        acceptProbability,
+        numIterations,
+        endTemperature,
+        CoolingMethod.EXPONENTIAL);
+  }
+
+  public static <S extends Solution<S>> SimulatedAnnealing<S> autofit(
+      double initialObjectiveValue,
+      double worse,
+      double acceptProbability,
+      long numIterations,
+      double endTemperature,
+      CoolingMethod method) {
     Objects.requireNonNull(method, "method must not be null.");
 
-    if (!Double.isFinite(initialObjectiveValue) || initialObjectiveValue <= 0.0) {
+    if (!Double.isFinite(initialObjectiveValue) || initialObjectiveValue == 0.0) {
       throw new IllegalArgumentException(
-          "initialObjectiveValue must be finite and strictly positive.");
+          "initialObjectiveValue must be finite and non-zero.");
     }
 
     if (!Double.isFinite(worse) || worse <= 0.0 || worse > 1.0) {
@@ -124,19 +149,23 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
       throw new IllegalArgumentException("numIterations must be positive.");
     }
 
-    double startTemperature = -(worse * initialObjectiveValue) / Math.log(acceptProbability);
+    if (!Double.isFinite(endTemperature) || endTemperature <= 0.0) {
+      throw new IllegalArgumentException("endTemperature must be finite and strictly positive.");
+    }
 
-    if (!Double.isFinite(startTemperature) || startTemperature < 1.0) {
+    double startTemperature =
+        -(worse * Math.abs(initialObjectiveValue)) / Math.log(acceptProbability);
+
+    if (!Double.isFinite(startTemperature) || startTemperature <= endTemperature) {
       throw new IllegalArgumentException(
-          "Autofit requires a finite startTemperature greater than or equal to 1.0. "
-              + "Use the constructor to configure a different endTemperature.");
+          "Autofit requires a finite startTemperature strictly greater than endTemperature.");
     }
 
     double step =
         method == CoolingMethod.LINEAR
-            ? (startTemperature - 1.0) / numIterations
-            : Math.pow(1.0 / startTemperature, 1.0 / numIterations);
+            ? (startTemperature - endTemperature) / numIterations
+            : Math.exp((Math.log(endTemperature) - Math.log(startTemperature)) / numIterations);
 
-    return new SimulatedAnnealing<>(startTemperature, 1.0, step, method);
+    return new SimulatedAnnealing<>(startTemperature, endTemperature, step, method);
   }
 }
