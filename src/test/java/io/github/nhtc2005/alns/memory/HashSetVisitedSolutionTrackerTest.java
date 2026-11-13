@@ -192,10 +192,5 @@ class HashSetVisitedSolutionTrackerTest {
     public boolean isFeasible() {
       return true;
     }
-
-    @Override
-    public int compareTo(RouteSolution other) {
-      return Double.compare(getObjectiveValue(), other.getObjectiveValue());
-    }
   }
 }

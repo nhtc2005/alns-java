@@ -65,13 +65,13 @@ class NoImprovementTest {
   }
 
   @Test
-  void shouldStop_ShouldSnapshotBestAndUseCompareTo_WhenSolutionIsMutable() {
-    NoImprovement<RankedSolution> criterion = new NoImprovement<>(2);
-    RankedSolution bestSolution = new RankedSolution(10);
+  void shouldStop_ShouldSnapshotBestObjective_WhenSolutionIsMutable() {
+    NoImprovement<MutableSolution> criterion = new NoImprovement<>(2);
+    MutableSolution bestSolution = new MutableSolution(10);
 
     assertFalse(
         criterion.shouldStop(new StoppingContext<>(0, 0, bestSolution, bestSolution, null)));
-    bestSolution.rank = 9;
+    bestSolution.objectiveValue = 9;
     assertFalse(
         criterion.shouldStop(new StoppingContext<>(2, 0, bestSolution, bestSolution, null)));
     assertTrue(criterion.shouldStop(new StoppingContext<>(4, 0, bestSolution, bestSolution, null)));
@@ -116,31 +116,26 @@ class NoImprovementTest {
         iteration, 0, new TestSolution(best), new TestSolution(current), null);
   }
 
-  private static final class RankedSolution implements Solution<RankedSolution> {
-    private int rank;
+  private static final class MutableSolution implements Solution<MutableSolution> {
+    private int objectiveValue;
 
-    private RankedSolution(int rank) {
-      this.rank = rank;
+    private MutableSolution(int objectiveValue) {
+      this.objectiveValue = objectiveValue;
     }
 
     @Override
-    public RankedSolution copy() {
-      return new RankedSolution(rank);
+    public MutableSolution copy() {
+      return new MutableSolution(objectiveValue);
     }
 
     @Override
     public double getObjectiveValue() {
-      return 0;
+      return objectiveValue;
     }
 
     @Override
     public boolean isFeasible() {
       return true;
-    }
-
-    @Override
-    public int compareTo(RankedSolution other) {
-      return Integer.compare(rank, other.rank);
     }
   }
 }

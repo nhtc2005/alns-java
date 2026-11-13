@@ -224,7 +224,7 @@ class AlnsStatisticsIntegrationTest {
   }
 
   @Test
-  void solve_ShouldRecordActualBestObjectiveValue_WhenCompareToUsesDifferentRanking() {
+  void solve_ShouldMinimizeObjective_WhenOtherSolutionDataHasDifferentOrdering() {
     Alns<RankedSolution> alns =
         Alns.<RankedSolution>builder()
             .randomGenerator(new Random(1))
@@ -240,13 +240,13 @@ class AlnsStatisticsIntegrationTest {
     AlnsResult<RankedSolution> result =
         alns.solve(new RankedSolution(10, 10.0), context -> true, new MaxIterations<>(2));
 
-    assertEquals(9, result.bestSolution().rank());
+    assertEquals(11, result.bestSolution().rank());
     assertEquals(List.of(10.0, 100.0, 1.0), result.statistics().getCurrentObjectiveValues());
-    assertEquals(List.of(10.0, 100.0, 100.0), result.statistics().getBestObjectiveValues());
+    assertEquals(List.of(10.0, 10.0, 1.0), result.statistics().getBestObjectiveValues());
   }
 
   @Test
-  void solve_ShouldAvoidReadingObjectiveValues_WhenStatisticsAreDisabled() {
+  void solve_ShouldLeaveStatisticsEmpty_WhenStatisticsAreDisabled() {
     TestSolution initialSolution = mock(TestSolution.class);
     when(initialSolution.isFeasible()).thenReturn(true);
     when(initialSolution.copy()).thenReturn(initialSolution);
@@ -261,7 +261,6 @@ class AlnsStatisticsIntegrationTest {
         alns.solve(initialSolution, context -> true, new MaxIterations<>(2));
 
     assertDisabledStatistics(result);
-    verify(initialSolution, never()).getObjectiveValue();
   }
 
   @Test
@@ -332,11 +331,6 @@ class AlnsStatisticsIntegrationTest {
     @Override
     public boolean isFeasible() {
       return true;
-    }
-
-    @Override
-    public int compareTo(RankedSolution other) {
-      return Integer.compare(rank, other.rank);
     }
   }
 }

@@ -155,10 +155,12 @@ public final class Alns<S extends Solution<S>> {
         status = SolutionStatus.BEST;
         visitedSolutionTracker.recordIfNew(candidateSolution);
       } else if (isFeasible && isAccepted) {
-        int comparisonToCurrent = candidateSolution.compareTo(currentSolution);
-        status = comparisonToCurrent < 0 ? SolutionStatus.BETTER : SolutionStatus.ACCEPTED;
+        double candidateObjective = candidateSolution.getObjectiveValue();
+        double currentObjective = currentSolution.getObjectiveValue();
+        status =
+            candidateObjective < currentObjective ? SolutionStatus.BETTER : SolutionStatus.ACCEPTED;
         boolean isNew = visitedSolutionTracker.recordIfNew(candidateSolution);
-        isRewardEligible = isNew && comparisonToCurrent != 0;
+        isRewardEligible = isNew && candidateObjective != currentObjective;
         currentSolution = candidateSolution;
       } else {
         status = SolutionStatus.REJECTED;
@@ -195,7 +197,7 @@ public final class Alns<S extends Solution<S>> {
   }
 
   private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S currentSolution) {
-    return candidateSolution.compareTo(currentSolution) < 0;
+    return candidateSolution.getObjectiveValue() < currentSolution.getObjectiveValue();
   }
 
   private void validateOperatorSelection(OperatorSelection operatorSelection) {

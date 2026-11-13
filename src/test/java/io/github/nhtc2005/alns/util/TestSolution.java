@@ -38,9 +38,4 @@ public final class TestSolution implements Solution<TestSolution> {
   public boolean isFeasible() {
     return isFeasible;
   }
-
-  @Override
-  public int compareTo(TestSolution o) {
-    return Double.compare(this.objectiveValue, o.objectiveValue);
-  }
 }
