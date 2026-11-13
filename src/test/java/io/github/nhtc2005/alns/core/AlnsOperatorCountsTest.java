@@ -31,7 +31,8 @@ class AlnsOperatorCountsTest {
           () ->
               new Alns<>(
                   new Random(1), List.of(destroy, destroy), List.of(repair, repair), selector));
-      assertThrows(IllegalArgumentException.class, () -> builder().operatorSelector(selector).build());
+      assertThrows(
+          IllegalArgumentException.class, () -> builder().operatorSelector(selector).build());
     }
   }
 
@@ -57,8 +58,7 @@ class AlnsOperatorCountsTest {
     OperatorSelector<TestSolution> selector =
         new OperatorSelector<>() {
           @Override
-          public OperatorSelection select(
-              OperatorSelectionContext<TestSolution> context) {
+          public OperatorSelection select(OperatorSelectionContext<TestSolution> context) {
             return new OperatorSelection(0, 0);
           }
 
@@ -70,7 +70,8 @@ class AlnsOperatorCountsTest {
           }
         };
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> builder().operatorSelector(selector).build());
+        assertThrows(
+            IllegalArgumentException.class, () -> builder().operatorSelector(selector).build());
     assertEquals("custom validation", exception.getMessage());
   }
 

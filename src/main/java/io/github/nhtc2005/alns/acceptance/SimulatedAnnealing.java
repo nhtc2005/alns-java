@@ -131,8 +131,7 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
     Objects.requireNonNull(method, "method must not be null.");
 
     if (!Double.isFinite(initialObjectiveValue) || initialObjectiveValue == 0.0) {
-      throw new IllegalArgumentException(
-          "initialObjectiveValue must be finite and non-zero.");
+      throw new IllegalArgumentException("initialObjectiveValue must be finite and non-zero.");
     }
 
     if (!Double.isFinite(worse) || worse <= 0.0 || worse > 1.0) {

@@ -364,8 +364,7 @@ class SimulatedAnnealingTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> SimulatedAnnealing.autofit(initialValue, 0.1, 0.5, 1000));
-    assertEquals(
-        "initialObjectiveValue must be finite and non-zero.", exception.getMessage());
+    assertEquals("initialObjectiveValue must be finite and non-zero.", exception.getMessage());
   }
 
   @ParameterizedTest
@@ -444,8 +443,7 @@ class SimulatedAnnealingTest {
 
   @Test
   void autofit_ShouldUseExponentialCooling_WhenOnlyEndTemperatureIsSpecified() {
-    SimulatedAnnealing<TestSolution> sa =
-        SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, 0.01);
+    SimulatedAnnealing<TestSolution> sa = SimulatedAnnealing.autofit(-100.0, 0.1, 0.5, 10, 0.01);
     assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
     assertEquals(0.01, sa.getEndTemperature());
   }
