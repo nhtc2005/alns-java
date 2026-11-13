@@ -19,6 +19,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
 
+/**
+ * Runs Adaptive Large Neighborhood Search with configurable operators and search policies.
+ *
+ * <p>The objective is minimized. Use {@link #builder()} or a constructor to configure the solver,
+ * then supply acceptance and stopping criteria to {@link #solve}. Instances share their configured
+ * components and RNG across calls and must not be used for concurrent searches.
+ *
+ * @param <S> the solution type
+ */
 public final class Alns<S extends Solution<S>> {
 
   private final RandomGenerator randomGenerator;
@@ -28,6 +37,19 @@ public final class Alns<S extends Solution<S>> {
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
 
+  /**
+   * Creates a solver with statistics and visit tracking disabled.
+   *
+   * <p>Operator lists are copied; operator and component instances are shared.
+   *
+   * @param randomGenerator the non-null random generator used throughout the search
+   * @param destroyOperators the non-empty list of non-null destroy operators
+   * @param repairOperators the non-empty list of non-null repair operators
+   * @param operatorSelector the non-null selector compatible with the operator counts
+   * @throws NullPointerException if a required argument or operator is null
+   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
+   *     counts
+   */
   public Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
@@ -36,6 +58,20 @@ public final class Alns<S extends Solution<S>> {
     this(randomGenerator, destroyOperators, repairOperators, operatorSelector, false);
   }
 
+  /**
+   * Creates a solver with optional statistics and visit tracking disabled.
+   *
+   * <p>Operator lists are copied; operator and component instances are shared.
+   *
+   * @param randomGenerator the non-null random generator used throughout the search
+   * @param destroyOperators the non-empty list of non-null destroy operators
+   * @param repairOperators the non-empty list of non-null repair operators
+   * @param operatorSelector the non-null selector compatible with the operator counts
+   * @param collectStatistics whether to retain histories and outcome counts
+   * @throws NullPointerException if a required argument or operator is null
+   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
+   *     counts
+   */
   public Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
@@ -51,6 +87,21 @@ public final class Alns<S extends Solution<S>> {
         VisitedSolutionTracker.disabled());
   }
 
+  /**
+   * Creates a solver with the supplied search components.
+   *
+   * <p>Operator lists are copied; operator and component instances are shared.
+   *
+   * @param randomGenerator the non-null random generator used throughout the search
+   * @param destroyOperators the non-empty list of non-null destroy operators
+   * @param repairOperators the non-empty list of non-null repair operators
+   * @param operatorSelector the non-null selector compatible with the operator counts
+   * @param collectStatistics whether to retain histories and outcome counts
+   * @param visitedSolutionTracker the non-null tracker used for reward eligibility
+   * @throws NullPointerException if a required argument or operator is null
+   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
+   *     counts
+   */
   public Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
@@ -71,10 +122,39 @@ public final class Alns<S extends Solution<S>> {
         this.destroyOperators.size(), this.repairOperators.size());
   }
 
+  /**
+   * Returns a builder with statistics and visit tracking disabled by default.
+   *
+   * @param <S> the solution type
+   * @return a new builder
+   */
   public static <S extends Solution<S>> Builder<S> builder() {
     return new Builder<>();
   }
 
+  /**
+   * Searches from a feasible initial solution until the stopping criterion requests termination.
+   *
+   * <p>Resets the selector, criteria, and tracker before each run, but does not reset the RNG or
+   * operators. The initial solution is copied, and statistics are created separately for each run.
+   * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
+   * bests are accepted regardless of the acceptance decision.
+   *
+   * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
+   * eligible; other accepted candidates require a new key and an objective different from the
+   * current solution. Tracking does not prevent revisits. Exceptions from user components
+   * propagate.
+   *
+   * @param initialSolution the non-null feasible initial solution with a finite objective
+   * @param acceptanceCriterion the non-null acceptance policy
+   * @param stoppingCriterion the non-null termination policy, checked before each iteration
+   * @return the best solution, completed iteration count, runtime, and statistics
+   * @throws NullPointerException if an argument, solution copy, operator result, or selection is
+   *     null
+   * @throws IllegalArgumentException if the initial solution is infeasible or an initial/candidate
+   *     objective is not finite
+   * @throws IllegalStateException if the selector returns an out-of-range operator index
+   */
   public AlnsResult<S> solve(
       S initialSolution,
       AcceptanceCriterion<S> acceptanceCriterion,
@@ -219,6 +299,14 @@ public final class Alns<S extends Solution<S>> {
     }
   }
 
+  /**
+   * Configures a solver, using uniform random selection unless a selector is supplied.
+   *
+   * <p>A random generator and at least one operator of each kind are required. Built solvers share
+   * configured component instances; building does not clone their state.
+   *
+   * @param <S> the solution type
+   */
   public static final class Builder<S extends Solution<S>> {
 
     private RandomGenerator randomGenerator;
@@ -230,35 +318,77 @@ public final class Alns<S extends Solution<S>> {
 
     private Builder() {}
 
+    /**
+     * Sets the required source of randomness.
+     *
+     * @param randomGenerator the random generator used by the search
+     * @return this builder
+     * @throws NullPointerException if {@code randomGenerator} is null
+     */
     public Builder<S> randomGenerator(RandomGenerator randomGenerator) {
       this.randomGenerator =
           Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
       return this;
     }
 
+    /**
+     * Appends a destroy operator; insertion order defines its index.
+     *
+     * @param destroyOperator the destroy operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code destroyOperator} is null
+     */
     public Builder<S> addDestroyOperator(DestroyOperator<S> destroyOperator) {
       destroyOperators.add(
           Objects.requireNonNull(destroyOperator, "destroyOperator must not be null."));
       return this;
     }
 
+    /**
+     * Appends a repair operator; insertion order defines its index.
+     *
+     * @param repairOperator the repair operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code repairOperator} is null
+     */
     public Builder<S> addRepairOperator(RepairOperator<S> repairOperator) {
       repairOperators.add(
           Objects.requireNonNull(repairOperator, "repairOperator must not be null."));
       return this;
     }
 
+    /**
+     * Sets the operator selector, replacing the default uniform random selector.
+     *
+     * @param operatorSelector the selector compatible with the configured operator counts
+     * @return this builder
+     * @throws NullPointerException if {@code operatorSelector} is null
+     */
     public Builder<S> operatorSelector(OperatorSelector<S> operatorSelector) {
       this.operatorSelector =
           Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
       return this;
     }
 
+    /**
+     * Enables or disables statistics collection.
+     *
+     * @param collectStatistics whether to retain full histories and outcome counts; false by
+     *     default
+     * @return this builder
+     */
     public Builder<S> collectStatistics(boolean collectStatistics) {
       this.collectStatistics = collectStatistics;
       return this;
     }
 
+    /**
+     * Sets the tracker used to identify accepted solution revisits.
+     *
+     * @param visitedSolutionTracker the tracker for reward eligibility; disabled by default
+     * @return this builder
+     * @throws NullPointerException if {@code visitedSolutionTracker} is null
+     */
     public Builder<S> visitedSolutionTracker(VisitedSolutionTracker<S> visitedSolutionTracker) {
       this.visitedSolutionTracker =
           Objects.requireNonNull(
@@ -266,6 +396,14 @@ public final class Alns<S extends Solution<S>> {
       return this;
     }
 
+    /**
+     * Creates a solver and validates the selector's operator counts.
+     *
+     * @return a solver with copied operator lists and shared component instances
+     * @throws NullPointerException if no random generator was configured
+     * @throws IllegalStateException if either operator list is empty
+     * @throws IllegalArgumentException if the selector rejects the operator counts
+     */
     public Alns<S> build() {
       RandomGenerator configuredRandomGenerator =
           Objects.requireNonNull(randomGenerator, "A randomGenerator is required.");

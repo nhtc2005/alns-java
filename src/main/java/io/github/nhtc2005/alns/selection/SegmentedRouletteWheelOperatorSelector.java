@@ -5,6 +5,21 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
 
+/**
+ * Selects operators by weight and updates all weights after each fixed-length feedback segment.
+ *
+ * <p>Destroy and repair selection is independent, with \(P(i) = w_i / \sum_j w_j\) in each group.
+ * Weights start at 1; an all-zero group uses uniform selection. At a segment boundary:
+ *
+ * <p>\[ w_i' = \theta w_i + (1 - \theta) \Sigma_i. \]
+ *
+ * <p>Here \(\theta\) is {@code decay}, and \(\Sigma_i\) is the sum of scores credited to operator
+ * \(i\) in that segment, not an average. Ineligible feedback adds zero score but still advances the
+ * segment. Unused operators also decay, and segment scores are cleared after updating. Instances
+ * hold mutable state and must not be shared by concurrent runs.
+ *
+ * @param <S> the solution type
+ */
 public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     implements OperatorSelector<S> {
 
@@ -18,6 +33,18 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
 
   private long iterationsInSegment;
 
+  /**
+   * Creates a selector for fixed operator counts.
+   *
+   * @param destroyOperatorCount the positive number of destroy operators
+   * @param repairOperatorCount the positive number of repair operators
+   * @param scores four finite non-negative scores in BEST, BETTER, ACCEPTED, REJECTED order; copied
+   *     on construction
+   * @param decay the finite weight retention factor in {@code [0, 1]}
+   * @param segmentLength the positive number of feedback updates per segment
+   * @throws IllegalArgumentException if any numeric parameter or score count is invalid
+   * @throws NullPointerException if {@code scores} is null
+   */
   public SegmentedRouletteWheelOperatorSelector(
       int destroyOperatorCount,
       int repairOperatorCount,
@@ -56,6 +83,11 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @throws IllegalArgumentException if either count differs from this selector's configured count
+   */
   @Override
   public void validateOperatorCounts(int destroyOperatorCount, int repairOperatorCount) {
     if (destroyOperatorCount != getDestroyOperatorCount()
@@ -72,6 +104,12 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
         select(repairOperatorWeights, context.randomGenerator()));
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @throws IndexOutOfBoundsException if either selected operator index is out of range
+   * @throws ArithmeticException if accumulated segment scores would become non-finite
+   */
   @Override
   public void update(OperatorSelectionFeedback<S> feedback) {
     int destroyOperatorIndex =
@@ -110,6 +148,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     }
   }
 
+  /** Restores all weights to 1 and clears pending segment scores and the segment counter. */
   @Override
   public void reset() {
     Arrays.fill(destroyOperatorWeights, 1.0);
@@ -119,42 +158,92 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     iterationsInSegment = 0;
   }
 
+  /**
+   * Returns the configured number of destroy operators.
+   *
+   * @return the configured number of destroy operators
+   */
   public int getDestroyOperatorCount() {
     return destroyOperatorWeights.length;
   }
 
+  /**
+   * Returns the configured number of repair operators.
+   *
+   * @return the configured number of repair operators
+   */
   public int getRepairOperatorCount() {
     return repairOperatorWeights.length;
   }
 
+  /**
+   * Returns a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order.
+   *
+   * @return a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order
+   */
   public double[] getScores() {
     return scores.clone();
   }
 
+  /**
+   * Returns the configured weight retention factor.
+   *
+   * @return the configured weight retention factor
+   */
   public double getDecay() {
     return decay;
   }
 
+  /**
+   * Returns the number of feedback updates per segment.
+   *
+   * @return the number of feedback updates per segment
+   */
   public long getSegmentLength() {
     return segmentLength;
   }
 
+  /**
+   * Returns the number of feedback updates in the incomplete segment.
+   *
+   * @return the number of feedback updates in the incomplete segment
+   */
   public long getIterationsInSegment() {
     return iterationsInSegment;
   }
 
+  /**
+   * Returns a copy of destroy weights indexed by operator.
+   *
+   * @return a copy of destroy weights indexed by operator
+   */
   public double[] getDestroyOperatorWeights() {
     return destroyOperatorWeights.clone();
   }
 
+  /**
+   * Returns a copy of repair weights indexed by operator.
+   *
+   * @return a copy of repair weights indexed by operator
+   */
   public double[] getRepairOperatorWeights() {
     return repairOperatorWeights.clone();
   }
 
+  /**
+   * Returns a copy of accumulated destroy scores in the incomplete segment.
+   *
+   * @return a copy of accumulated destroy scores in the incomplete segment
+   */
   public double[] getDestroyOperatorSegmentScores() {
     return destroyOperatorSegmentScores.clone();
   }
 
+  /**
+   * Returns a copy of accumulated repair scores in the incomplete segment.
+   *
+   * @return a copy of accumulated repair scores in the incomplete segment
+   */
   public double[] getRepairOperatorSegmentScores() {
     return repairOperatorSegmentScores.clone();
   }
