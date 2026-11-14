@@ -2,6 +2,8 @@ package io.github.nhtc2005.alns.acceptance;
 
 import io.github.nhtc2005.alns.model.Solution;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Accepts candidates probabilistically using simulated annealing for minimization.
@@ -18,6 +20,8 @@ import java.util.Objects;
  * @param <S> the solution type
  */
 public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(SimulatedAnnealing.class);
 
   /** Defines how temperature changes after each acceptance evaluation. */
   public enum CoolingMethod {
@@ -316,6 +320,14 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
             ? (startTemperature - endTemperature) / numIterations
             : Math.exp((Math.log(endTemperature) - Math.log(startTemperature)) / numIterations);
 
-    return new SimulatedAnnealing<>(startTemperature, endTemperature, step, method);
+    SimulatedAnnealing<S> criterion =
+        new SimulatedAnnealing<>(startTemperature, endTemperature, step, method);
+    LOGGER.debug(
+        "Fitted simulated annealing: startTemperature={}, endTemperature={}, step={}, method={}",
+        startTemperature,
+        endTemperature,
+        step,
+        method);
+    return criterion;
   }
 }

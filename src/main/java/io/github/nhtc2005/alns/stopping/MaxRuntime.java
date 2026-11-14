@@ -3,6 +3,8 @@ package io.github.nhtc2005.alns.stopping;
 import io.github.nhtc2005.alns.model.Solution;
 import java.time.Duration;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Stops when elapsed search time reaches the configured duration.
@@ -13,6 +15,8 @@ import java.util.Objects;
  * @param <S> the solution type
  */
 public class MaxRuntime<S extends Solution<S>> implements StoppingCriterion<S> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(MaxRuntime.class);
 
   private final long maxRuntimeNanos;
 
@@ -40,7 +44,13 @@ public class MaxRuntime<S extends Solution<S>> implements StoppingCriterion<S> {
 
   @Override
   public boolean shouldStop(StoppingContext<S> context) {
-    return context.elapsedNanos() >= maxRuntimeNanos;
+    long elapsedNanos = context.elapsedNanos();
+    boolean shouldStop = elapsedNanos >= maxRuntimeNanos;
+    if (shouldStop) {
+      LOGGER.debug(
+          "Runtime limit reached: elapsedNanos={}, limitNanos={}", elapsedNanos, maxRuntimeNanos);
+    }
+    return shouldStop;
   }
 
   /**

@@ -4,6 +4,8 @@ import io.github.nhtc2005.alns.model.Solution;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Selects operators by weight and updates selected operators' weights after each fixed-length
@@ -24,6 +26,9 @@ import java.util.random.RandomGenerator;
  */
 public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     implements OperatorSelector<S> {
+
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(SegmentedRouletteWheelOperatorSelector.class);
 
   private final double[] scores;
   private final double decay;
@@ -150,9 +155,15 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
 
     if (iterationsInSegment == segmentLength) {
       updateWeights(
-          destroyOperatorWeights, destroyOperatorSegmentScores, destroyOperatorSelectionCounts);
+          "Destroy",
+          destroyOperatorWeights,
+          destroyOperatorSegmentScores,
+          destroyOperatorSelectionCounts);
       updateWeights(
-          repairOperatorWeights, repairOperatorSegmentScores, repairOperatorSelectionCounts);
+          "Repair",
+          repairOperatorWeights,
+          repairOperatorSegmentScores,
+          repairOperatorSelectionCounts);
       Arrays.fill(destroyOperatorSegmentScores, 0.0);
       Arrays.fill(repairOperatorSegmentScores, 0.0);
       Arrays.fill(destroyOperatorSelectionCounts, 0);
@@ -265,10 +276,22 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     return repairOperatorSegmentScores.clone();
   }
 
-  private void updateWeights(double[] weights, double[] segmentScores, long[] selectionCounts) {
+  private void updateWeights(
+      String operatorType, double[] weights, double[] segmentScores, long[] selectionCounts) {
     for (int i = 0; i < weights.length; i++) {
+      double oldWeight = weights[i];
       if (selectionCounts[i] > 0) {
         weights[i] = decay * weights[i] + (1 - decay) * (segmentScores[i] / selectionCounts[i]);
+      }
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace(
+            "{} operator {} at segment end: totalScore={}, selectionCount={}, weight {} -> {}",
+            operatorType,
+            i,
+            segmentScores[i],
+            selectionCounts[i],
+            oldWeight,
+            weights[i]);
       }
     }
   }

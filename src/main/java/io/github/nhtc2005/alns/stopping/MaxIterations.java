@@ -1,6 +1,8 @@
 package io.github.nhtc2005.alns.stopping;
 
 import io.github.nhtc2005.alns.model.Solution;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Stops once the number of completed iterations reaches the configured limit.
@@ -8,6 +10,8 @@ import io.github.nhtc2005.alns.model.Solution;
  * @param <S> the solution type
  */
 public final class MaxIterations<S extends Solution<S>> implements StoppingCriterion<S> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(MaxIterations.class);
 
   private final long maxIterations;
 
@@ -26,7 +30,12 @@ public final class MaxIterations<S extends Solution<S>> implements StoppingCrite
 
   @Override
   public boolean shouldStop(StoppingContext<S> context) {
-    return context.iteration() >= maxIterations;
+    long iteration = context.iteration();
+    boolean shouldStop = iteration >= maxIterations;
+    if (shouldStop) {
+      LOGGER.debug("Iteration limit reached: iterations={}, limit={}", iteration, maxIterations);
+    }
+    return shouldStop;
   }
 
   /**

@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs Adaptive Large Neighborhood Search with configurable operators and search policies.
@@ -30,6 +32,8 @@ import java.util.random.RandomGenerator;
  * @param <S> the solution type
  */
 public final class Alns<S extends Solution<S>> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(Alns.class);
 
   private final RandomGenerator randomGenerator;
   private final List<DestroyOperator<S>> destroyOperators;
@@ -220,6 +224,14 @@ public final class Alns<S extends Solution<S>> {
           currentSolution.getObjectiveValue(), bestSolution.getObjectiveValue());
     }
 
+    if (LOGGER.isInfoEnabled()) {
+      LOGGER.info(
+          "Starting ALNS: initialObjective={}, destroyOperators={}, repairOperators={}",
+          currentSolution.getObjectiveValue(),
+          destroyOperators.size(),
+          repairOperators.size());
+    }
+
     while (!stoppingCriterion.shouldStop(
         new StoppingContext<>(
             iteration,
@@ -274,6 +286,13 @@ public final class Alns<S extends Solution<S>> {
                   randomGenerator));
 
       if (isFeasible && isBetter(candidateSolution, bestSolution)) {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug(
+              "New best at iteration {}: objective {} -> {}",
+              iteration + 1,
+              bestSolution.getObjectiveValue(),
+              candidateSolution.getObjectiveValue());
+        }
         currentSolution = candidateSolution;
         bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
         status = SolutionStatus.BEST;
@@ -303,6 +322,18 @@ public final class Alns<S extends Solution<S>> {
             iterationRuntimeNanos);
       }
       iteration++;
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace(
+            "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",
+            iteration,
+            operatorSelection.destroyOperatorIndex(),
+            operatorSelection.repairOperatorIndex(),
+            status,
+            candidateSolution.getObjectiveValue(),
+            currentSolution.getObjectiveValue(),
+            bestSolution.getObjectiveValue(),
+            isRewardEligible);
+      }
       if (iterationCallback != null) {
         iterationCallback.onIteration(
             new IterationContext<>(
@@ -317,7 +348,15 @@ public final class Alns<S extends Solution<S>> {
       }
     }
 
-    return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
+    long elapsedNanos = System.nanoTime() - startedAt;
+    if (LOGGER.isInfoEnabled()) {
+      LOGGER.info(
+          "Finished ALNS: bestObjective={}, iterations={}, elapsedNanos={}",
+          bestSolution.getObjectiveValue(),
+          iteration,
+          elapsedNanos);
+    }
+    return new AlnsResult<>(bestSolution, iteration, elapsedNanos, statistics);
   }
 
   private static void validateObjective(Solution<?> solution, String name) {
