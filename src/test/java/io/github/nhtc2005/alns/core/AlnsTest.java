@@ -296,17 +296,10 @@ class AlnsTest {
   }
 
   @ParameterizedTest
-  @CsvSource({
-    "NaN, true",
-    "Infinity, true",
-    "-Infinity, true",
-    "NaN, false",
-    "Infinity, false",
-    "-Infinity, false"
-  })
-  void solve_ShouldThrowExceptionBeforeAcceptance_WhenCandidateObjectiveIsNonFinite(
-      double objective, boolean feasible) {
-    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
+  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+  void solve_ShouldThrowExceptionBeforeAcceptance_WhenFeasibleCandidateObjectiveIsNonFinite(
+      double objective) {
+    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective));
 
     IllegalArgumentException exception =
         assertThrows(
@@ -341,7 +334,10 @@ class AlnsTest {
     "120.0, true, true, ACCEPTED, 100.0",
     "120.0, true, false, REJECTED, 100.0",
     "40.0, false, true, REJECTED, 100.0",
-    "40.0, false, false, REJECTED, 100.0"
+    "40.0, false, false, REJECTED, 100.0",
+    "NaN, false, true, REJECTED, 100.0",
+    "Infinity, false, true, REJECTED, 100.0",
+    "-Infinity, false, true, REJECTED, 100.0"
   })
   void solve_ShouldClassifyCandidateAndUpdateBest_WhenCandidateIsEvaluated(
       double candidateObjective,
@@ -415,7 +411,8 @@ class AlnsTest {
     "80.0, true, BEST, 80.0",
     "120.0, true, ACCEPTED, 100.0",
     "110.0, true, ACCEPTED, 100.0",
-    "80.0, false, REJECTED, 100.0"
+    "80.0, false, REJECTED, 100.0",
+    "-Infinity, false, REJECTED, 100.0"
   })
   void solve_ShouldEvaluateRefinedCandidate_WhenLocalSearchRuns(
       double objective, boolean feasible, SolutionStatus status, double bestObjective) {

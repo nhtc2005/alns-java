@@ -170,8 +170,9 @@ public final class Alns<S extends Solution<S>> {
    * bests are accepted regardless of the acceptance decision.
    *
    * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
-   * Its result is validated again and used by acceptance, tracking, feedback, and statistics. The
-   * iteration runtime includes local search. Local search is not reset between runs.
+   * Its result is checked again for feasibility and used by acceptance, tracking, feedback, and
+   * statistics. The iteration runtime includes local search. Local search is not reset between
+   * runs.
    *
    * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
    * eligible; other accepted candidates require a new key and an objective different from the
@@ -188,8 +189,8 @@ public final class Alns<S extends Solution<S>> {
    * @return the best solution, completed iteration count, runtime, and statistics
    * @throws NullPointerException if an argument, solution copy, operator result, or selection is
    *     null
-   * @throws IllegalArgumentException if the initial solution is infeasible or an initial/candidate
-   *     objective is not finite
+   * @throws IllegalArgumentException if the initial solution is infeasible or the initial or a
+   *     feasible candidate objective is not finite
    * @throws IllegalStateException if the selector returns an out-of-range operator index
    */
   public AlnsResult<S> solve(
@@ -263,18 +264,24 @@ public final class Alns<S extends Solution<S>> {
                   .get(operatorSelection.repairOperatorIndex())
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
-      validateObjective(candidateSolution, "candidateSolution");
-      if (localSearch != null && candidateSolution.isFeasible()) {
+
+      boolean isFeasible = candidateSolution.isFeasible();
+      if (isFeasible) {
+        validateObjective(candidateSolution, "candidateSolution");
+      }
+      if (localSearch != null && isFeasible) {
         candidateSolution =
             Objects.requireNonNull(
                 localSearch.apply(candidateSolution, randomGenerator),
                 "LocalSearch.apply(...) must not return null.");
-        validateObjective(candidateSolution, "candidateSolution");
+        isFeasible = candidateSolution.isFeasible();
+        if (isFeasible) {
+          validateObjective(candidateSolution, "candidateSolution");
+        }
       }
 
       SolutionStatus status;
       boolean isRewardEligible = true;
-      boolean isFeasible = candidateSolution.isFeasible();
       boolean isAccepted =
           acceptanceCriterion.shouldAccept(
               new AcceptanceContext<>(
