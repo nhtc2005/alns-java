@@ -1,5 +1,8 @@
 # ALNS
 
+[![CI](https://github.com/nhtc2005/alns-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nhtc2005/alns-java/actions/workflows/ci.yml)
+[![alns](https://img.shields.io/github/v/release/nhtc2005/alns-java?label=alns)](https://github.com/nhtc2005/alns-java/releases/latest)
+
 `alns` is a general-purpose, documented and tested Java implementation of the
 Adaptive Large Neighborhood Search (ALNS) metaheuristic for solving difficult
 combinatorial optimization problems. Starting from an initial solution, ALNS
@@ -14,9 +17,12 @@ policy receives feedback based on the outcome.
 
 ## Installation
 
-Release JARs are distributed through [GitHub Releases](https://github.com/nhtc2005/alns-java/releases).
-Download `alns-0.1.0.jar` from the `v0.1.0` release once it is published and add it
-to your application's classpath. Sources and Javadoc JARs are provided separately.
+Download [alns-0.1.0.jar](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0.jar)
+from [release v0.1.0](https://github.com/nhtc2005/alns-java/releases/tag/v0.1.0)
+and add it to your application's classpath.
+[Sources](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0-sources.jar)
+and [Javadoc](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0-javadoc.jar)
+JARs are also available.
 
 The library requires `org.slf4j:slf4j-api:2.0.20` on the classpath. Dependencies are
 not bundled in the release JAR.
@@ -30,9 +36,9 @@ selection policies, and stopping criteria. To solve your own problem, provide:
 - A feasible initial solution.
 - One or more destroy and repair operators tailored to your problem.
 
-API documentation for the latest published release will be available on
-[GitHub Pages](https://nhtc2005.github.io/alns-java/) after the first successful
-deployment. To generate it locally, see [Documentation](CONTRIBUTING.md#documentation).
+The [API documentation for version 0.1.0](https://nhtc2005.github.io/alns-java/)
+is available on GitHub Pages. To generate it locally, see
+[Documentation](CONTRIBUTING.md#documentation).
 
 ## Contributing
 
