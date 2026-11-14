@@ -15,8 +15,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -83,10 +81,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
           gh release create "$RELEASE_TAG" artifacts/*.jar \
-            --verify-tag --generate-notes --title "alns $RELEASE_VERSION"
+            --verify-tag --generate-notes --title "$RELEASE_TAG"
 
   pages:
     needs: [build, release]
