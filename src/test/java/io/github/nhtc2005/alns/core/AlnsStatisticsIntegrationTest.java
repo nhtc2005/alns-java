@@ -90,6 +90,7 @@ class AlnsStatisticsIntegrationTest {
             .operatorSelector(mockOperatorSelector)
             .collectStatistics(true)
             .build();
+
     when(mockOperatorSelector.select(any()))
         .thenReturn(
             new OperatorSelection(0, 2),
@@ -114,13 +115,16 @@ class AlnsStatisticsIntegrationTest {
 
     assertEquals(5, result.totalIterations());
     assertEquals(90.0, result.bestSolution().getObjectiveValue());
+
     assertEquals(
         List.of(100.0, 90.0, 120.0, 110.0, 110.0, 110.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 90.0, 90.0, 90.0, 90.0, 90.0), statistics.getBestObjectiveValues());
+
     assertEquals(1, statistics.getStatusCount(SolutionStatus.BEST));
     assertEquals(1, statistics.getStatusCount(SolutionStatus.BETTER));
     assertEquals(1, statistics.getStatusCount(SolutionStatus.ACCEPTED));
     assertEquals(2, statistics.getStatusCount(SolutionStatus.REJECTED));
+
     assertEquals(List.of("random-removal", "destroy-1"), statistics.getDestroyOperatorNames());
     assertEquals(
         List.of("repair-0", "greedy-insertion", "repair-2"), statistics.getRepairOperatorNames());
@@ -152,6 +156,7 @@ class AlnsStatisticsIntegrationTest {
     long totalIterationRuntimeNanos =
         statistics.getIterationRuntimesNanos().stream().mapToLong(Long::longValue).sum();
     assertTrue(totalIterationRuntimeNanos <= result.elapsedNanos());
+
     verify(mockOperatorSelector, times(5)).update(any());
     verify(mockAcceptanceCriterion, times(5)).shouldAccept(any());
   }
@@ -178,11 +183,13 @@ class AlnsStatisticsIntegrationTest {
     AlnsStatistics secondStatistics = secondResult.statistics();
 
     assertNotSame(firstStatistics, secondStatistics);
+
     assertEquals(List.of(100.0, 99.0, 98.0), firstStatistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 99.0, 98.0), firstStatistics.getBestObjectiveValues());
     assertEquals(firstCurrentObjectiveValues, firstStatistics.getCurrentObjectiveValues());
     assertEquals(firstIterationRuntimesNanos, firstStatistics.getIterationRuntimesNanos());
     assertEquals(2, firstStatistics.getStatusCount(SolutionStatus.BEST));
+
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getCurrentObjectiveValues());
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getBestObjectiveValues());
     assertEquals(3, secondStatistics.getStatusCount(SolutionStatus.BEST));
@@ -253,8 +260,10 @@ class AlnsStatisticsIntegrationTest {
 
   private void assertDisabledStatistics(AlnsResult<TestSolution> result) {
     AlnsStatistics statistics = result.statistics();
+
     assertEquals(2, result.totalIterations());
     assertFalse(statistics.isEnabled());
+
     assertThrows(IllegalStateException.class, statistics::getCurrentObjectiveValues);
     assertThrows(IllegalStateException.class, statistics::getBestObjectiveValues);
     assertThrows(IllegalStateException.class, statistics::getIterationRuntimesNanos);

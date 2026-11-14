@@ -33,11 +33,12 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   private final double[] scores;
   private final double decay;
   private final long segmentLength;
+
   private final double[] destroyOperatorWeights;
   private final double[] repairOperatorWeights;
+
   private final double[] destroyOperatorSegmentScores;
   private final double[] repairOperatorSegmentScores;
-
   private final long[] destroyOperatorSelectionCounts;
   private final long[] repairOperatorSelectionCounts;
 
@@ -66,9 +67,11 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     }
 
     Objects.requireNonNull(scores, "scores must not be null.");
+
     if (scores.length != 4) {
       throw new IllegalArgumentException("scores must contain exactly four values.");
     }
+
     this.scores = scores.clone();
     for (double score : this.scores) {
       if (!Double.isFinite(score) || score < 0.0) {
@@ -79,18 +82,21 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     if (!Double.isFinite(decay) || decay < 0.0 || decay > 1.0) {
       throw new IllegalArgumentException("decay must be finite and in the range [0.0, 1.0].");
     }
+
     if (segmentLength <= 0) {
       throw new IllegalArgumentException("segmentLength must be positive.");
     }
 
     this.decay = decay;
     this.segmentLength = segmentLength;
+
     this.destroyOperatorWeights = new double[destroyOperatorCount];
     this.repairOperatorWeights = new double[repairOperatorCount];
     this.destroyOperatorSegmentScores = new double[destroyOperatorCount];
     this.repairOperatorSegmentScores = new double[repairOperatorCount];
     this.destroyOperatorSelectionCounts = new long[destroyOperatorCount];
     this.repairOperatorSelectionCounts = new long[repairOperatorCount];
+
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
@@ -164,6 +170,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
           repairOperatorWeights,
           repairOperatorSegmentScores,
           repairOperatorSelectionCounts);
+
       Arrays.fill(destroyOperatorSegmentScores, 0.0);
       Arrays.fill(repairOperatorSegmentScores, 0.0);
       Arrays.fill(destroyOperatorSelectionCounts, 0);
@@ -179,6 +186,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   public void reset() {
     Arrays.fill(destroyOperatorWeights, 1.0);
     Arrays.fill(repairOperatorWeights, 1.0);
+
     Arrays.fill(destroyOperatorSegmentScores, 0.0);
     Arrays.fill(repairOperatorSegmentScores, 0.0);
     Arrays.fill(destroyOperatorSelectionCounts, 0);

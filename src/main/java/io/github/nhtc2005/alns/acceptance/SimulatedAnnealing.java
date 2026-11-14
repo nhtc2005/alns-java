@@ -322,6 +322,7 @@ public final class SimulatedAnnealing<S extends Solution<S>> implements Acceptan
 
     SimulatedAnnealing<S> criterion =
         new SimulatedAnnealing<>(startTemperature, endTemperature, step, method);
+
     LOGGER.debug(
         "Fitted simulated annealing: startTemperature={}, endTemperature={}, step={}, method={}",
         startTemperature,

@@ -106,9 +106,11 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     double[] configuredScores = selector.getScores();
     assertArrayEquals(new double[] {7, 3, 1, 0}, configuredScores);
+
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     assertArrayEquals(new double[] {7, 0}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {7, 0}, selector.getRepairOperatorSegmentScores());
+
     configuredScores[0] = 0;
     selector.update(feedback(0, 0, SolutionStatus.BEST));
 
@@ -138,6 +140,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     assertEquals(new OperatorSelection(1, 1), selector.select(context(0)));
     assertEquals(new OperatorSelection(1, 1), selector.select(context(Long.MAX_VALUE)));
+
     assertEquals(1, selector.getIterationsInSegment());
     assertArrayEquals(new double[] {7, 0}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {7, 0}, selector.getRepairOperatorSegmentScores());
@@ -157,6 +160,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     selector.update(feedback(0, 0, SolutionStatus.REJECTED));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
     selector.update(feedback(2, 2, SolutionStatus.REJECTED));
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.0, Math.nextDown(1.0));
 
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
@@ -170,6 +174,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
 
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
+
     verify(mockRandomGenerator, never()).nextDouble();
   }
 
@@ -180,6 +185,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
             2, 2, new double[] {Double.MAX_VALUE, 3, 1, 0}, 0.0, 2);
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.25, 0.75);
 
     assertEquals(new OperatorSelection(0, 1), selector.select(context()));
@@ -192,6 +198,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     selector.update(feedback(0, 0, SolutionStatus.REJECTED));
     selector.update(feedback(2, 2, SolutionStatus.REJECTED));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
+
     // Deliberately outside [0.0, 1.0) to exercise the defensive fallback.
     when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
 
@@ -209,6 +216,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     assertArrayEquals(new double[] {4, 1}, repairOperatorWeights);
     destroyOperatorWeights[1] = 0;
     repairOperatorWeights[0] = 0;
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
 
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
@@ -340,6 +348,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     double[] repairOperatorSegmentScores = selector.getRepairOperatorSegmentScores();
     assertArrayEquals(new double[] {0, 7}, destroyOperatorSegmentScores);
     assertArrayEquals(new double[] {7, 0}, repairOperatorSegmentScores);
+
     destroyOperatorSegmentScores[1] = 0;
     repairOperatorSegmentScores[0] = 0;
     selector.update(feedback(1, 0, SolutionStatus.BETTER));

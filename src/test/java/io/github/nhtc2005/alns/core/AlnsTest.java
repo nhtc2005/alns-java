@@ -211,6 +211,7 @@ class AlnsTest {
 
     assertEquals(50.0, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockRandomGenerator, times(2)).nextInt(1);
     verify(mockDestroyOperator).apply(any(), same(mockRandomGenerator));
     verify(mockRepairOperator).apply(same(partialSolution), same(mockRandomGenerator));
@@ -237,6 +238,12 @@ class AlnsTest {
     for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
       assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
     }
+
+    assertDoesNotThrow(
+        () ->
+            operatorCountsBuilder()
+                .operatorSelector(context -> new OperatorSelection(0, 0))
+                .build());
   }
 
   @Test
@@ -286,6 +293,7 @@ class AlnsTest {
                     new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion));
 
     assertEquals("initialSolution objective must be finite.", exception.getMessage());
+
     verifyNoInteractions(
         mockOperatorSelector,
         mockAcceptanceCriterion,
@@ -324,6 +332,7 @@ class AlnsTest {
                     new TestSolution(100.0), mockAcceptanceCriterion, mockStoppingCriterion));
 
     assertEquals("candidateSolution objective must be finite.", exception.getMessage());
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
   }
@@ -339,6 +348,7 @@ class AlnsTest {
 
     assertEquals(objective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockAcceptanceCriterion).shouldAccept(any());
   }
 
@@ -370,6 +380,7 @@ class AlnsTest {
 
     assertEquals(expectedBestObjective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockOperatorSelector).reset();
     verify(mockAcceptanceCriterion).reset();
     verify(mockStoppingCriterion).reset();
@@ -378,6 +389,7 @@ class AlnsTest {
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
         ArgumentCaptor.captor();
     verify(mockOperatorSelector).update(feedbackCaptor.capture());
+
     assertEquals(expectedStatus, feedbackCaptor.getValue().status());
     assertSame(candidateSolution, feedbackCaptor.getValue().candidateSolution());
     assertEquals(
@@ -469,6 +481,7 @@ class AlnsTest {
     }
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
     order.verify(mockOperatorSelector).update(feedback.capture());
+
     assertSame(refined, feedback.getValue().candidateSolution());
     assertEquals(status, feedback.getValue().status());
     assertEquals(bestObjective, result.bestSolution().getObjectiveValue());
@@ -501,6 +514,7 @@ class AlnsTest {
         .shouldAccept(argThat(context -> context.candidateSolution() == repaired));
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
     verify(mockOperatorSelector).update(feedback.capture());
+
     assertEquals(
         feasible ? SolutionStatus.ACCEPTED : SolutionStatus.REJECTED, feedback.getValue().status());
     assertEquals(
@@ -533,6 +547,7 @@ class AlnsTest {
             ? "LocalSearch.apply(...) must not return null."
             : "candidateSolution objective must be finite.",
         exception.getMessage());
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
     verify(mockVisitedSolutionTracker, times(1)).recordIfNew(any());
@@ -553,6 +568,7 @@ class AlnsTest {
             () ->
                 solver.solve(
                     new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1))));
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
   }
@@ -603,6 +619,7 @@ class AlnsTest {
             .onIteration(contexts::add)
             .build();
     OperatorSelection selection = new OperatorSelection(0, 0);
+
     when(mockOperatorSelector.select(any())).thenReturn(selection);
     when(mockRepairOperator.apply(any(), any()))
         .thenReturn(
@@ -620,6 +637,7 @@ class AlnsTest {
             new MaxIterations<>(5));
 
     assertEquals(5, contexts.size());
+
     ArgumentCaptor<OperatorSelectionContext<TestSolution>> selectionContexts =
         ArgumentCaptor.captor();
     verify(mockOperatorSelector, times(5)).select(selectionContexts.capture());
@@ -665,6 +683,7 @@ class AlnsTest {
             .localSearch(mockLocalSearch)
             .onIteration(mockIterationCallback)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockRepairOperator.apply(any(), any())).thenReturn(repaired);
     when(mockLocalSearch.apply(any(), any())).thenReturn(refined);
@@ -678,6 +697,7 @@ class AlnsTest {
     ArgumentCaptor<IterationContext<TestSolution>> contextCaptor = ArgumentCaptor.captor();
     order.verify(mockIterationCallback).onIteration(contextCaptor.capture());
     order.verifyNoMoreInteractions();
+
     IterationContext<TestSolution> context = contextCaptor.getValue();
     assertSame(refined, context.candidateSolution());
     assertSame(refined, context.currentSolution());
@@ -694,6 +714,7 @@ class AlnsTest {
         solver.solve(new TestSolution(100.0), context -> true, context -> true);
 
     assertEquals(0, result.totalIterations());
+
     verifyNoInteractions(mockIterationCallback);
   }
 
@@ -710,6 +731,7 @@ class AlnsTest {
         assertThrows(
             IllegalStateException.class,
             () -> solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2))));
+
     var order = inOrder(mockOperatorSelector, mockIterationCallback);
     order.verify(mockOperatorSelector).update(any());
     order.verify(mockIterationCallback).onIteration(any());

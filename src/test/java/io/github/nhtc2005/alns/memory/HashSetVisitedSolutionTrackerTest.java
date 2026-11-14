@@ -36,11 +36,14 @@ class HashSetVisitedSolutionTrackerTest {
     TestSolution solution = new TestSolution(100.0);
 
     assertEquals(0, tracker.getVisitedSolutionCount());
+
     assertTrue(tracker.recordIfNew(solution));
     assertEquals(1, tracker.getVisitedSolutionCount());
+
     assertFalse(tracker.recordIfNew(solution));
     assertFalse(tracker.recordIfNew(solution.copy()));
     assertEquals(1, tracker.getVisitedSolutionCount());
+
     assertTrue(tracker.recordIfNew(new TestSolution(90.0)));
     assertEquals(2, tracker.getVisitedSolutionCount());
   }
@@ -56,6 +59,7 @@ class HashSetVisitedSolutionTrackerTest {
 
     assertEquals(firstSolution.getObjectiveValue(), secondSolution.getObjectiveValue());
     assertEquals(hashCollision, firstSolution.route.hashCode() == secondSolution.route.hashCode());
+
     assertTrue(tracker.recordIfNew(firstSolution));
     assertTrue(tracker.recordIfNew(secondSolution));
     assertFalse(tracker.recordIfNew(firstSolution.copy()));
@@ -91,6 +95,7 @@ class HashSetVisitedSolutionTrackerTest {
 
     assertEquals("solution must not be null.", exception.getMessage());
     assertEquals(1, tracker.getVisitedSolutionCount());
+
     verify(mockSolutionKey).keyOf(solution);
     verifyNoMoreInteractions(mockSolutionKey);
   }
@@ -112,6 +117,7 @@ class HashSetVisitedSolutionTrackerTest {
     assertEquals(1, tracker.getVisitedSolutionCount());
     assertTrue(tracker.recordIfNew(secondSolution));
     assertEquals(2, tracker.getVisitedSolutionCount());
+
     verify(mockSolutionKey).keyOf(firstSolution);
     verify(mockSolutionKey, times(2)).keyOf(secondSolution);
     verifyNoMoreInteractions(mockSolutionKey);
@@ -124,6 +130,7 @@ class HashSetVisitedSolutionTrackerTest {
     TestSolution firstSolution = new TestSolution(100.0);
     TestSolution secondSolution = new TestSolution(90.0);
     IllegalStateException exception = new IllegalStateException("Cannot extract key.");
+
     when(mockSolutionKey.keyOf(firstSolution)).thenReturn(100.0);
     when(mockSolutionKey.keyOf(secondSolution)).thenThrow(exception);
     assertTrue(tracker.recordIfNew(firstSolution));

@@ -21,11 +21,14 @@ public final class AlnsStatistics {
   private static final AlnsStatistics DISABLED = new AlnsStatistics(false, List.of(), List.of());
 
   private final boolean enabled;
+
   private final List<String> destroyOperatorNames;
   private final List<String> repairOperatorNames;
+
   private final List<Double> currentObjectiveValues = new ArrayList<>();
   private final List<Double> bestObjectiveValues = new ArrayList<>();
   private final List<Long> iterationRuntimesNanos = new ArrayList<>();
+
   private final long[] statusCounts = new long[SolutionStatus.values().length];
   private final long[][] destroyOperatorCounts;
   private final long[][] repairOperatorCounts;
@@ -70,9 +73,11 @@ public final class AlnsStatistics {
     int statusIndex = status.ordinal();
     long[] destroyCounts = destroyOperatorCounts[operatorSelection.destroyOperatorIndex()];
     long[] repairCounts = repairOperatorCounts[operatorSelection.repairOperatorIndex()];
+
     currentObjectiveValues.add(currentObjectiveValue);
     bestObjectiveValues.add(bestObjectiveValue);
     iterationRuntimesNanos.add(iterationRuntimeNanos);
+
     destroyCounts[statusIndex]++;
     repairCounts[statusIndex]++;
     statusCounts[statusIndex]++;

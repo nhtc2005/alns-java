@@ -88,8 +88,10 @@ class RouletteWheelOperatorSelectorTest {
     double[] scores = {7, 3, 1, 0};
     RouletteWheelOperatorSelector<TestSolution> selector =
         new RouletteWheelOperatorSelector<>(2, 2, scores, 0.0);
+
     scores[0] = 0;
     assertArrayEquals(new double[] {7, 3, 1, 0}, selector.getScores());
+
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     assertArrayEquals(new double[] {7, 1}, selector.getDestroyOperatorWeights());
     assertArrayEquals(new double[] {7, 1}, selector.getRepairOperatorWeights());
@@ -132,6 +134,7 @@ class RouletteWheelOperatorSelectorTest {
     when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
 
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
+
     verify(mockRandomGenerator, never()).nextDouble();
   }
 
@@ -152,6 +155,7 @@ class RouletteWheelOperatorSelectorTest {
         new RouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0);
     selector.update(feedback(1, 1, SolutionStatus.BEST));
     selector.update(feedback(2, 2, SolutionStatus.REJECTED));
+
     // Deliberately outside [0.0, 1.0) to exercise the defensive fallback.
     when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
 
@@ -167,8 +171,10 @@ class RouletteWheelOperatorSelectorTest {
     double[] repairWeights = selector.getRepairOperatorWeights();
     assertArrayEquals(new double[] {1, 4}, destroyWeights);
     assertArrayEquals(new double[] {4, 1}, repairWeights);
+
     destroyWeights[1] = 0;
     repairWeights[0] = 0;
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
     assertArrayEquals(new double[] {1, 4}, selector.getDestroyOperatorWeights());
@@ -250,6 +256,7 @@ class RouletteWheelOperatorSelectorTest {
         () ->
             selector.update(
                 feedback(destroyOperatorIndex, repairOperatorIndex, SolutionStatus.BEST)));
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
   }

@@ -38,10 +38,12 @@ public final class Alns<S extends Solution<S>> {
   private static final Logger LOGGER = LoggerFactory.getLogger(Alns.class);
 
   private final RandomGenerator randomGenerator;
+
   private final List<DestroyOperator<S>> destroyOperators;
   private final List<RepairOperator<S>> repairOperators;
   private final List<String> destroyOperatorNames;
   private final List<String> repairOperatorNames;
+
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
@@ -72,6 +74,7 @@ public final class Alns<S extends Solution<S>> {
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
     this.localSearch = localSearch;
     this.iterationCallback = iterationCallback;
+
     this.operatorSelector.validateOperatorCounts(
         this.destroyOperators.size(), this.repairOperators.size());
   }
@@ -140,9 +143,11 @@ public final class Alns<S extends Solution<S>> {
 
     long startedAt = System.nanoTime();
     long iteration = 0;
+
     S currentSolution = copyOf(initialSolution, "initialSolution.copy() must not return null.");
     S bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
     visitedSolutionTracker.recordIfNew(currentSolution);
+
     AlnsStatistics statistics =
         collectStatistics
             ? new AlnsStatistics(destroyOperatorNames, repairOperatorNames)
@@ -247,6 +252,7 @@ public final class Alns<S extends Solution<S>> {
       operatorSelector.update(
           new OperatorSelectionFeedback<>(
               operatorSelection, candidateSolution, status, isRewardEligible));
+
       if (collectStatistics) {
         long iterationRuntimeNanos = System.nanoTime() - iterationStartedAt;
         statistics.collectIteration(
@@ -256,6 +262,7 @@ public final class Alns<S extends Solution<S>> {
             bestSolution.getObjectiveValue(),
             iterationRuntimeNanos);
       }
+
       if (LOGGER.isTraceEnabled()) {
         LOGGER.trace(
             "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",
@@ -268,6 +275,7 @@ public final class Alns<S extends Solution<S>> {
             bestSolution.getObjectiveValue(),
             isRewardEligible);
       }
+
       if (iterationCallback != null) {
         iterationCallback.onIteration(
             new IterationContext<>(
@@ -352,10 +360,12 @@ public final class Alns<S extends Solution<S>> {
   public static final class Builder<S extends Solution<S>> {
 
     private RandomGenerator randomGenerator;
+
     private final List<DestroyOperator<S>> destroyOperators = new ArrayList<>();
     private final List<RepairOperator<S>> repairOperators = new ArrayList<>();
     private final List<String> destroyOperatorNames = new ArrayList<>();
     private final List<String> repairOperatorNames = new ArrayList<>();
+
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();

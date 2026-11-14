@@ -28,6 +28,7 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
 
   private final double[] scores;
   private final double decay;
+
   private final double[] destroyOperatorWeights;
   private final double[] repairOperatorWeights;
 
@@ -49,9 +50,11 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
     }
 
     Objects.requireNonNull(scores, "scores must not be null.");
+
     if (scores.length != 4) {
       throw new IllegalArgumentException("scores must contain exactly four values.");
     }
+
     this.scores = scores.clone();
     for (double score : this.scores) {
       if (!Double.isFinite(score) || score < 0.0) {
@@ -64,8 +67,10 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
     }
 
     this.decay = decay;
+
     this.destroyOperatorWeights = new double[destroyOperatorCount];
     this.repairOperatorWeights = new double[repairOperatorCount];
+
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
@@ -121,6 +126,7 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
         decay * destroyOperatorWeights[destroyOperatorIndex] + (1 - decay) * score;
     repairOperatorWeights[repairOperatorIndex] =
         decay * repairOperatorWeights[repairOperatorIndex] + (1 - decay) * score;
+
     if (LOGGER.isTraceEnabled()) {
       LOGGER.trace(
           "Destroy operator {}: score={}, weight {} -> {}",

@@ -210,6 +210,7 @@ class SimulatedAnnealingTest {
     assertEquals(1.0, sa.getEndTemperature());
     assertEquals(0.5, sa.getStep(), 1e-6);
     assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
+
     assertEquals(4.0, sa.getTemperature(), 1e-6);
     assertTrue(sa.shouldAccept(context));
     assertEquals(2.0, sa.getTemperature(), 1e-6);
@@ -226,6 +227,7 @@ class SimulatedAnnealingTest {
     assertEquals(0.25, sa.getEndTemperature());
     assertEquals(0.25, sa.getStep(), 1e-6);
     assertEquals(SimulatedAnnealing.CoolingMethod.EXPONENTIAL, sa.getMethod());
+
     assertEquals(4.0, sa.getTemperature(), 1e-6);
     assertTrue(sa.shouldAccept(context));
     assertEquals(1.0, sa.getTemperature(), 1e-6);
@@ -243,8 +245,9 @@ class SimulatedAnnealingTest {
     assertEquals(method, sa.getMethod());
     assertEquals(16.0, sa.getStartTemperature(), 1e-6);
     assertEquals(1.0, sa.getEndTemperature());
-    assertEquals(16.0, sa.getTemperature(), 1e-6);
     assertEquals(expectedStep, sa.getStep(), 1e-8);
+
+    assertEquals(16.0, sa.getTemperature(), 1e-6);
     assertTrue(sa.shouldAccept(context));
     assertEquals(firstTemperature, sa.getTemperature(), 1e-6);
     for (int iteration = 1; iteration < 4; iteration++) {

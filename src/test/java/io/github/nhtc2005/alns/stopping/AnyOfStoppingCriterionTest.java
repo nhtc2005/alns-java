@@ -58,6 +58,7 @@ class AnyOfStoppingCriterionTest {
 
     assertEquals(List.of(mockFirstCriterion, mockSecondCriterion), criterion.getCriteria());
     assertTrue(criterion.shouldStop(mockContext));
+
     verify(mockFirstCriterion).shouldStop(mockContext);
     verify(mockSecondCriterion).shouldStop(mockContext);
 
@@ -73,6 +74,7 @@ class AnyOfStoppingCriterionTest {
     when(mockFirstCriterion.shouldStop(mockContext)).thenReturn(true);
 
     assertTrue(criterion.shouldStop(mockContext));
+
     verify(mockFirstCriterion).shouldStop(mockContext);
     verifyNoMoreInteractions(mockFirstCriterion);
     verifyNoInteractions(mockSecondCriterion);
@@ -88,6 +90,7 @@ class AnyOfStoppingCriterionTest {
     when(mockSecondCriterion.shouldStop(mockContext)).thenReturn(secondMatches);
 
     assertEquals(secondMatches, criterion.shouldStop(mockContext));
+
     InOrder order = inOrder(mockFirstCriterion, mockSecondCriterion);
     order.verify(mockFirstCriterion).shouldStop(mockContext);
     order.verify(mockSecondCriterion).shouldStop(mockContext);
