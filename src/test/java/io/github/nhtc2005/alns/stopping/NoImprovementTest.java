@@ -89,6 +89,7 @@ class NoImprovementTest {
   }
 
   private static final class MutableSolution implements Solution<MutableSolution> {
+
     private int objectiveValue;
 
     private MutableSolution(int objectiveValue) {

@@ -6,6 +6,7 @@ import io.github.nhtc2005.alns.memory.VisitedSolutionTracker;
 import io.github.nhtc2005.alns.model.Solution;
 import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
+import io.github.nhtc2005.alns.operator.LocalSearch;
 import io.github.nhtc2005.alns.operator.RepairOperator;
 import io.github.nhtc2005.alns.selection.OperatorSelection;
 import io.github.nhtc2005.alns.selection.OperatorSelectionContext;
@@ -36,6 +37,7 @@ public final class Alns<S extends Solution<S>> {
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
+  private final LocalSearch<S> localSearch;
 
   /**
    * Creates a solver with statistics and visit tracking disabled.
@@ -109,6 +111,24 @@ public final class Alns<S extends Solution<S>> {
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker) {
+    this(
+        randomGenerator,
+        destroyOperators,
+        repairOperators,
+        operatorSelector,
+        collectStatistics,
+        visitedSolutionTracker,
+        null);
+  }
+
+  private Alns(
+      RandomGenerator randomGenerator,
+      List<DestroyOperator<S>> destroyOperators,
+      List<RepairOperator<S>> repairOperators,
+      OperatorSelector<S> operatorSelector,
+      boolean collectStatistics,
+      VisitedSolutionTracker<S> visitedSolutionTracker,
+      LocalSearch<S> localSearch) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
@@ -118,12 +138,13 @@ public final class Alns<S extends Solution<S>> {
     this.collectStatistics = collectStatistics;
     this.visitedSolutionTracker =
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
+    this.localSearch = localSearch;
     this.operatorSelector.validateOperatorCounts(
         this.destroyOperators.size(), this.repairOperators.size());
   }
 
   /**
-   * Returns a builder with statistics and visit tracking disabled by default.
+   * Returns a builder with statistics, visit tracking, and local search disabled by default.
    *
    * @param <S> the solution type
    * @return a new builder
@@ -139,6 +160,10 @@ public final class Alns<S extends Solution<S>> {
    * operators. The initial solution is copied, and statistics are created separately for each run.
    * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
    * bests are accepted regardless of the acceptance decision.
+   *
+   * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
+   * Its result is validated again and used by acceptance, tracking, feedback, and statistics. The
+   * iteration runtime includes local search. Local search is not reset between runs.
    *
    * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
    * eligible; other accepted candidates require a new key and an objective different from the
@@ -219,6 +244,13 @@ public final class Alns<S extends Solution<S>> {
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
       validateObjective(candidateSolution, "candidateSolution");
+      if (localSearch != null && candidateSolution.isFeasible()) {
+        candidateSolution =
+            Objects.requireNonNull(
+                localSearch.apply(candidateSolution, randomGenerator),
+                "LocalSearch.apply(...) must not return null.");
+        validateObjective(candidateSolution, "candidateSolution");
+      }
 
       SolutionStatus status;
       boolean isRewardEligible = true;
@@ -315,6 +347,7 @@ public final class Alns<S extends Solution<S>> {
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
+    private LocalSearch<S> localSearch;
 
     private Builder() {}
 
@@ -397,6 +430,18 @@ public final class Alns<S extends Solution<S>> {
     }
 
     /**
+     * Sets optional local search for feasible repaired solutions; disabled by default.
+     *
+     * @param localSearch the local search to apply before candidate evaluation
+     * @return this builder
+     * @throws NullPointerException if {@code localSearch} is null
+     */
+    public Builder<S> localSearch(LocalSearch<S> localSearch) {
+      this.localSearch = Objects.requireNonNull(localSearch, "localSearch must not be null.");
+      return this;
+    }
+
+    /**
      * Creates a solver and validates the selector's operator counts.
      *
      * @return a solver with copied operator lists and shared component instances
@@ -426,7 +471,8 @@ public final class Alns<S extends Solution<S>> {
           repairOperators,
           configuredOperatorSelector,
           collectStatistics,
-          visitedSolutionTracker);
+          visitedSolutionTracker,
+          localSearch);
     }
   }
 }

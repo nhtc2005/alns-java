@@ -6,16 +6,18 @@ import java.util.Objects;
 import java.util.random.RandomGenerator;
 
 /**
- * Selects operators by weight and updates all weights after each fixed-length feedback segment.
+ * Selects operators by weight and updates selected operators' weights after each fixed-length
+ * feedback segment.
  *
  * <p>Destroy and repair selection is independent, with \(P(i) = w_i / \sum_j w_j\) in each group.
  * Weights start at 1; an all-zero group uses uniform selection. At a segment boundary:
  *
- * <p>\[ w_i' = \theta w_i + (1 - \theta) \Sigma_i. \]
+ * <p>\[ w_i' = \theta w_i + (1 - \theta) \frac{\Sigma_i}{n_i}. \]
  *
  * <p>Here \(\theta\) is {@code decay}, and \(\Sigma_i\) is the sum of scores credited to operator
- * \(i\) in that segment, not an average. Ineligible feedback adds zero score but still advances the
- * segment. Unused operators also decay, and segment scores are cleared after updating. Instances
+ * \(i\) in that segment, and \(n_i\) is its selection count. Ineligible feedback contributes zero
+ * score but still counts as a selection and advances the segment. Operators with no selections
+ * retain their weights. Segment scores and selection counts are cleared after updating. Instances
  * hold mutable state and must not be shared by concurrent runs.
  *
  * @param <S> the solution type
@@ -30,6 +32,9 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   private final double[] repairOperatorWeights;
   private final double[] destroyOperatorSegmentScores;
   private final double[] repairOperatorSegmentScores;
+
+  private final long[] destroyOperatorSelectionCounts;
+  private final long[] repairOperatorSelectionCounts;
 
   private long iterationsInSegment;
 
@@ -79,6 +84,8 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     this.repairOperatorWeights = new double[repairOperatorCount];
     this.destroyOperatorSegmentScores = new double[destroyOperatorCount];
     this.repairOperatorSegmentScores = new double[repairOperatorCount];
+    this.destroyOperatorSelectionCounts = new long[destroyOperatorCount];
+    this.repairOperatorSelectionCounts = new long[repairOperatorCount];
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
@@ -137,24 +144,34 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
 
     destroyOperatorSegmentScores[destroyOperatorIndex] = destroySegmentScore;
     repairOperatorSegmentScores[repairOperatorIndex] = repairSegmentScore;
+    destroyOperatorSelectionCounts[destroyOperatorIndex]++;
+    repairOperatorSelectionCounts[repairOperatorIndex]++;
     iterationsInSegment++;
 
     if (iterationsInSegment == segmentLength) {
-      updateWeights(destroyOperatorWeights, destroyOperatorSegmentScores);
-      updateWeights(repairOperatorWeights, repairOperatorSegmentScores);
+      updateWeights(
+          destroyOperatorWeights, destroyOperatorSegmentScores, destroyOperatorSelectionCounts);
+      updateWeights(
+          repairOperatorWeights, repairOperatorSegmentScores, repairOperatorSelectionCounts);
       Arrays.fill(destroyOperatorSegmentScores, 0.0);
       Arrays.fill(repairOperatorSegmentScores, 0.0);
+      Arrays.fill(destroyOperatorSelectionCounts, 0);
+      Arrays.fill(repairOperatorSelectionCounts, 0);
       iterationsInSegment = 0;
     }
   }
 
-  /** Restores all weights to 1 and clears pending segment scores and the segment counter. */
+  /**
+   * Restores all weights to 1 and clears segment scores, selection counts and the segment counter.
+   */
   @Override
   public void reset() {
     Arrays.fill(destroyOperatorWeights, 1.0);
     Arrays.fill(repairOperatorWeights, 1.0);
     Arrays.fill(destroyOperatorSegmentScores, 0.0);
     Arrays.fill(repairOperatorSegmentScores, 0.0);
+    Arrays.fill(destroyOperatorSelectionCounts, 0);
+    Arrays.fill(repairOperatorSelectionCounts, 0);
     iterationsInSegment = 0;
   }
 
@@ -248,9 +265,11 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     return repairOperatorSegmentScores.clone();
   }
 
-  private void updateWeights(double[] weights, double[] segmentScores) {
+  private void updateWeights(double[] weights, double[] segmentScores, long[] selectionCounts) {
     for (int i = 0; i < weights.length; i++) {
-      weights[i] = decay * weights[i] + (1 - decay) * segmentScores[i];
+      if (selectionCounts[i] > 0) {
+        weights[i] = decay * weights[i] + (1 - decay) * (segmentScores[i] / selectionCounts[i]);
+      }
     }
   }
 

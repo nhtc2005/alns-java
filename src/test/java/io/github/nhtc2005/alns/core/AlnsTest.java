@@ -3,10 +3,14 @@ package io.github.nhtc2005.alns.core;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import io.github.nhtc2005.alns.acceptance.AcceptanceContext;
 import io.github.nhtc2005.alns.acceptance.AcceptanceCriterion;
 import io.github.nhtc2005.alns.acceptance.HillClimbing;
+import io.github.nhtc2005.alns.memory.VisitedSolutionTracker;
+import io.github.nhtc2005.alns.model.Solution;
 import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
+import io.github.nhtc2005.alns.operator.LocalSearch;
 import io.github.nhtc2005.alns.operator.RepairOperator;
 import io.github.nhtc2005.alns.selection.OperatorSelection;
 import io.github.nhtc2005.alns.selection.OperatorSelectionContext;
@@ -28,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -42,6 +47,8 @@ class AlnsTest {
   @Mock private OperatorSelector<TestSolution> mockOperatorSelector;
   @Mock private AcceptanceCriterion<TestSolution> mockAcceptanceCriterion;
   @Mock private StoppingCriterion<TestSolution> mockStoppingCriterion;
+  @Mock private VisitedSolutionTracker<TestSolution> mockVisitedSolutionTracker;
+  @Mock private LocalSearch<TestSolution> mockLocalSearch;
 
   private Alns<TestSolution> alns;
 
@@ -80,6 +87,29 @@ class AlnsTest {
   }
 
   @Test
+  void builder_ShouldThrowException_WhenOperatorIsNull() {
+    Alns.Builder<TestSolution> builder = Alns.builder();
+
+    NullPointerException destroyException =
+        assertThrows(NullPointerException.class, () -> builder.addDestroyOperator(null));
+
+    assertEquals("destroyOperator must not be null.", destroyException.getMessage());
+
+    NullPointerException repairException =
+        assertThrows(NullPointerException.class, () -> builder.addRepairOperator(null));
+
+    assertEquals("repairOperator must not be null.", repairException.getMessage());
+  }
+
+  @Test
+  void builder_ShouldThrowException_WhenLocalSearchIsNull() {
+    NullPointerException exception =
+        assertThrows(
+            NullPointerException.class, () -> Alns.<TestSolution>builder().localSearch(null));
+    assertEquals("localSearch must not be null.", exception.getMessage());
+  }
+
+  @Test
   void builder_ShouldUseDefaultSelector_WhenSelectorNotSet() {
     TestSolution initialSolution = new TestSolution(100.0);
     TestSolution partialSolution = new TestSolution(100.0);
@@ -106,21 +136,6 @@ class AlnsTest {
     verify(mockDestroyOperator).apply(any(), same(mockRandomGenerator));
     verify(mockRepairOperator).apply(same(partialSolution), same(mockRandomGenerator));
     verifyNoInteractions(mockOperatorSelector);
-  }
-
-  @Test
-  void builder_ShouldThrowException_WhenOperatorIsNull() {
-    Alns.Builder<TestSolution> builder = Alns.builder();
-
-    NullPointerException destroyException =
-        assertThrows(NullPointerException.class, () -> builder.addDestroyOperator(null));
-
-    assertEquals("destroyOperator must not be null.", destroyException.getMessage());
-
-    NullPointerException repairException =
-        assertThrows(NullPointerException.class, () -> builder.addRepairOperator(null));
-
-    assertEquals("repairOperator must not be null.", repairException.getMessage());
   }
 
   @Test
@@ -235,6 +250,80 @@ class AlnsTest {
   }
 
   @ParameterizedTest
+  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+  void solve_ShouldThrowExceptionBeforeReset_WhenInitialObjectiveIsNonFinite(double objective) {
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                alns.solve(
+                    new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion));
+
+    assertEquals("initialSolution objective must be finite.", exception.getMessage());
+    verifyNoInteractions(
+        mockOperatorSelector,
+        mockAcceptanceCriterion,
+        mockStoppingCriterion,
+        mockDestroyOperator,
+        mockRepairOperator);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"-1, 0", "1, 0", "0, -1", "0, 1"})
+  void solve_ShouldThrowException_WhenOperatorIndexIsOutOfBounds(
+      int destroyOperatorIndex, int repairOperatorIndex) {
+    TestSolution initialSolution = new TestSolution(100.0);
+    when(mockOperatorSelector.select(any()))
+        .thenReturn(new OperatorSelection(destroyOperatorIndex, repairOperatorIndex));
+
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion));
+    assertEquals(
+        "operatorSelector returned an out-of-range operator index.", exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "NaN, true",
+    "Infinity, true",
+    "-Infinity, true",
+    "NaN, false",
+    "Infinity, false",
+    "-Infinity, false"
+  })
+  void solve_ShouldThrowExceptionBeforeAcceptance_WhenCandidateObjectiveIsNonFinite(
+      double objective, boolean feasible) {
+    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
+
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                alns.solve(
+                    new TestSolution(100.0), mockAcceptanceCriterion, mockStoppingCriterion));
+
+    assertEquals("candidateSolution objective must be finite.", exception.getMessage());
+    verify(mockAcceptanceCriterion, never()).shouldAccept(any());
+    verify(mockOperatorSelector, never()).update(any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(doubles = {-Double.MAX_VALUE, -1.0, -0.0, 0.0, 1.0, Double.MAX_VALUE})
+  void solve_ShouldAllowInitialAndCandidateObjectives_WhenObjectivesAreFinite(double objective) {
+    setupBasicMocks(new TestSolution(Double.NaN, false), new TestSolution(objective));
+    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
+
+    AlnsResult<TestSolution> result =
+        alns.solve(new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion);
+
+    assertEquals(objective, result.bestSolution().getObjectiveValue());
+    assertEquals(1, result.totalIterations());
+    verify(mockAcceptanceCriterion).shouldAccept(any());
+  }
+
+  @ParameterizedTest
   @CsvSource({
     "50.0, true, true, BEST, 50.0",
     "50.0, true, false, BEST, 50.0",
@@ -311,77 +400,165 @@ class AlnsTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"-1, 0", "1, 0", "0, -1", "0, 1"})
-  void solve_ShouldThrowException_WhenOperatorIndexIsOutOfBounds(
-      int destroyOperatorIndex, int repairOperatorIndex) {
-    TestSolution initialSolution = new TestSolution(100.0);
-    when(mockOperatorSelector.select(any()))
-        .thenReturn(new OperatorSelection(destroyOperatorIndex, repairOperatorIndex));
+  @CsvSource({
+    "80.0, true, BEST, 80.0",
+    "120.0, true, ACCEPTED, 100.0",
+    "110.0, true, ACCEPTED, 100.0",
+    "80.0, false, REJECTED, 100.0"
+  })
+  void solve_ShouldEvaluateRefinedCandidate_WhenLocalSearchRuns(
+      double objective, boolean feasible, SolutionStatus status, double bestObjective) {
+    TestSolution repaired = new TestSolution(110.0);
+    TestSolution refined = objective == 110.0 ? repaired : new TestSolution(objective, feasible);
+    Alns<TestSolution> solver = localSearchBuilder().localSearch(mockLocalSearch).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(repaired);
+    when(mockLocalSearch.apply(same(repaired), same(mockRandomGenerator))).thenReturn(refined);
+    when(mockAcceptanceCriterion.shouldAccept(any()))
+        .thenAnswer(
+            invocation -> {
+              AcceptanceContext<TestSolution> context = invocation.getArgument(0);
+              assertSame(refined, context.candidateSolution());
+              assertEquals(100.0, context.currentSolution().getObjectiveValue());
+              assertEquals(100.0, context.bestSolution().getObjectiveValue());
+              return true;
+            });
+    when(mockVisitedSolutionTracker.recordIfNew(any())).thenReturn(true);
 
-    IllegalStateException exception =
+    AlnsResult<TestSolution> result =
+        solver.solve(new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1));
+
+    var order =
+        inOrder(
+            mockRepairOperator,
+            mockLocalSearch,
+            mockAcceptanceCriterion,
+            mockVisitedSolutionTracker,
+            mockOperatorSelector);
+    order.verify(mockRepairOperator).apply(any(), same(mockRandomGenerator));
+    order.verify(mockLocalSearch).apply(same(repaired), same(mockRandomGenerator));
+    order.verify(mockAcceptanceCriterion).shouldAccept(any());
+    if (feasible) {
+      order.verify(mockVisitedSolutionTracker).recordIfNew(same(refined));
+    } else {
+      verify(mockVisitedSolutionTracker, never()).recordIfNew(same(refined));
+    }
+    ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
+    order.verify(mockOperatorSelector).update(feedback.capture());
+    assertSame(refined, feedback.getValue().candidateSolution());
+    assertEquals(status, feedback.getValue().status());
+    assertEquals(bestObjective, result.bestSolution().getObjectiveValue());
+    assertEquals(
+        List.of(100.0, feasible ? objective : 100.0),
+        result.statistics().getCurrentObjectiveValues());
+    assertEquals(List.of(100.0, bestObjective), result.statistics().getBestObjectiveValues());
+    assertEquals(1, result.statistics().getStatusCount(status));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false, true", "true, false", "false, false"})
+  void solve_ShouldSkipLocalSearch_WhenDisabledOrRepairedSolutionIsInfeasible(
+      boolean enabled, boolean feasible) {
+    TestSolution repaired = new TestSolution(110.0, feasible);
+    Alns.Builder<TestSolution> builder = localSearchBuilder();
+    if (enabled) {
+      builder.localSearch(mockLocalSearch);
+    }
+    Alns<TestSolution> solver = builder.build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(repaired);
+    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
+
+    AlnsResult<TestSolution> result =
+        solver.solve(new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1));
+
+    verifyNoInteractions(mockLocalSearch);
+    verify(mockAcceptanceCriterion)
+        .shouldAccept(argThat(context -> context.candidateSolution() == repaired));
+    ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
+    verify(mockOperatorSelector).update(feedback.capture());
+    assertEquals(
+        feasible ? SolutionStatus.ACCEPTED : SolutionStatus.REJECTED, feedback.getValue().status());
+    assertEquals(
+        List.of(100.0, feasible ? 110.0 : 100.0), result.statistics().getCurrentObjectiveValues());
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+  void
+      solve_ShouldRejectInvalidResultBeforeAcceptance_WhenLocalSearchReturnsNullOrNonFiniteObjective(
+          Double objective) {
+    Alns<TestSolution> solver = localSearchBuilder().localSearch(mockLocalSearch).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(new TestSolution(110.0));
+    when(mockLocalSearch.apply(any(), any()))
+        .thenReturn(objective == null ? null : new TestSolution(objective));
+    Class<? extends RuntimeException> expected =
+        objective == null ? NullPointerException.class : IllegalArgumentException.class;
+
+    RuntimeException exception =
+        assertThrows(
+            expected,
+            () ->
+                solver.solve(
+                    new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1)));
+
+    assertEquals(
+        objective == null
+            ? "LocalSearch.apply(...) must not return null."
+            : "candidateSolution objective must be finite.",
+        exception.getMessage());
+    verify(mockAcceptanceCriterion, never()).shouldAccept(any());
+    verify(mockOperatorSelector, never()).update(any());
+    verify(mockVisitedSolutionTracker, times(1)).recordIfNew(any());
+  }
+
+  @Test
+  void solve_ShouldPropagateException_WhenLocalSearchFails() {
+    Alns<TestSolution> solver = localSearchBuilder().localSearch(mockLocalSearch).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(new TestSolution(110.0));
+    IllegalStateException failure = new IllegalStateException("Local search failed.");
+    when(mockLocalSearch.apply(any(), any())).thenThrow(failure);
+
+    assertSame(
+        failure,
         assertThrows(
             IllegalStateException.class,
-            () -> alns.solve(initialSolution, mockAcceptanceCriterion, mockStoppingCriterion));
-    assertEquals(
-        "operatorSelector returned an out-of-range operator index.", exception.getMessage());
-  }
-
-  @ParameterizedTest
-  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
-  void solve_ShouldThrowExceptionBeforeReset_WhenInitialObjectiveIsNonFinite(double objective) {
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
             () ->
-                alns.solve(
-                    new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion));
-
-    assertEquals("initialSolution objective must be finite.", exception.getMessage());
-    verifyNoInteractions(
-        mockOperatorSelector,
-        mockAcceptanceCriterion,
-        mockStoppingCriterion,
-        mockDestroyOperator,
-        mockRepairOperator);
-  }
-
-  @ParameterizedTest
-  @CsvSource({
-    "NaN, true",
-    "Infinity, true",
-    "-Infinity, true",
-    "NaN, false",
-    "Infinity, false",
-    "-Infinity, false"
-  })
-  void solve_ShouldThrowExceptionBeforeAcceptance_WhenCandidateObjectiveIsNonFinite(
-      double objective, boolean feasible) {
-    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
-
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                alns.solve(
-                    new TestSolution(100.0), mockAcceptanceCriterion, mockStoppingCriterion));
-
-    assertEquals("candidateSolution objective must be finite.", exception.getMessage());
+                solver.solve(
+                    new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1))));
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
   }
 
-  @ParameterizedTest
-  @ValueSource(doubles = {-Double.MAX_VALUE, -1.0, -0.0, 0.0, 1.0, Double.MAX_VALUE})
-  void solve_ShouldAllowInitialAndCandidateObjectives_WhenObjectivesAreFinite(double objective) {
-    setupBasicMocks(new TestSolution(Double.NaN, false), new TestSolution(objective));
-    when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
+  @Test
+  void solve_ShouldPreserveInitialSolution_WhenLocalSearchMutatesRepairedSolution() {
+    MutableSolution initial = new MutableSolution(100.0);
+    Alns<MutableSolution> solver =
+        Alns.<MutableSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, random) -> solution)
+            .addRepairOperator(
+                (solution, random) -> {
+                  solution.objective = 90.0;
+                  return solution;
+                })
+            .localSearch(
+                (solution, random) -> {
+                  assertEquals(90.0, solution.objective);
+                  solution.objective = 80.0;
+                  return solution;
+                })
+            .build();
 
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion);
+    AlnsResult<MutableSolution> result =
+        solver.solve(initial, new HillClimbing<>(), new MaxIterations<>(1));
 
-    assertEquals(objective, result.bestSolution().getObjectiveValue());
-    assertEquals(1, result.totalIterations());
-    verify(mockAcceptanceCriterion).shouldAccept(any());
+    assertEquals(100.0, initial.objective);
+    assertEquals(80.0, result.bestSolution().objective);
+    assertNotSame(initial, result.bestSolution());
   }
 
   @Test
@@ -402,8 +579,8 @@ class AlnsTest {
           reusedAlns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(3));
 
       assertEquals(3, result.totalIterations());
-      assertArrayEquals(new double[] {2.5}, selector.getDestroyOperatorWeights());
-      assertArrayEquals(new double[] {2.5}, selector.getRepairOperatorWeights());
+      assertArrayEquals(new double[] {1.5}, selector.getDestroyOperatorWeights());
+      assertArrayEquals(new double[] {1.5}, selector.getRepairOperatorWeights());
       assertArrayEquals(new double[] {2}, selector.getDestroyOperatorSegmentScores());
       assertArrayEquals(new double[] {2}, selector.getRepairOperatorSegmentScores());
       assertEquals(1, selector.getIterationsInSegment());
@@ -454,6 +631,40 @@ class AlnsTest {
     assertEquals(90.0, firstResult.bestSolution().getObjectiveValue());
     assertEquals(expectedSecondIterations, secondResult.totalIterations());
     assertEquals(200.0, secondResult.bestSolution().getObjectiveValue());
+  }
+
+  private Alns.Builder<TestSolution> localSearchBuilder() {
+    return Alns.<TestSolution>builder()
+        .randomGenerator(mockRandomGenerator)
+        .addDestroyOperator((solution, random) -> solution)
+        .addRepairOperator(mockRepairOperator)
+        .operatorSelector(mockOperatorSelector)
+        .visitedSolutionTracker(mockVisitedSolutionTracker)
+        .collectStatistics(true);
+  }
+
+  private static final class MutableSolution implements Solution<MutableSolution> {
+
+    private double objective;
+
+    private MutableSolution(double objective) {
+      this.objective = objective;
+    }
+
+    @Override
+    public MutableSolution copy() {
+      return new MutableSolution(objective);
+    }
+
+    @Override
+    public double getObjectiveValue() {
+      return objective;
+    }
+
+    @Override
+    public boolean isFeasible() {
+      return true;
+    }
   }
 
   private void setupBasicMocks(TestSolution partialSolution, TestSolution candidateSolution) {
