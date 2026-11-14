@@ -114,10 +114,10 @@ class AlnsStatisticsIntegrationTest {
     Alns<TestSolution> alns =
         Alns.<TestSolution>builder()
             .randomGenerator(new Random(1))
-            .addDestroyOperator(mockDestroyOperator)
+            .addDestroyOperator("random-removal", mockDestroyOperator)
             .addDestroyOperator(mockDestroyOperator)
             .addRepairOperator(mockRepairOperator)
-            .addRepairOperator(mockRepairOperator)
+            .addRepairOperator("greedy-insertion", mockRepairOperator)
             .addRepairOperator(mockRepairOperator)
             .operatorSelector(mockOperatorSelector)
             .collectStatistics(true)
@@ -153,6 +153,9 @@ class AlnsStatisticsIntegrationTest {
     assertEquals(1, statistics.getStatusCount(SolutionStatus.BETTER));
     assertEquals(1, statistics.getStatusCount(SolutionStatus.ACCEPTED));
     assertEquals(2, statistics.getStatusCount(SolutionStatus.REJECTED));
+    assertEquals(List.of("random-removal", "destroy-1"), statistics.getDestroyOperatorNames());
+    assertEquals(
+        List.of("repair-0", "greedy-insertion", "repair-2"), statistics.getRepairOperatorNames());
 
     long[][] expectedDestroyOperatorCounts = {{1, 1, 0, 0}, {0, 0, 1, 2}};
     long[][] expectedRepairOperatorCounts = {{0, 0, 1, 0}, {0, 1, 0, 1}, {1, 0, 0, 1}};

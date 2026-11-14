@@ -18,9 +18,11 @@ import java.util.Objects;
  */
 public final class AlnsStatistics {
 
-  private static final AlnsStatistics DISABLED = new AlnsStatistics(false, 0, 0);
+  private static final AlnsStatistics DISABLED = new AlnsStatistics(false, List.of(), List.of());
 
   private final boolean enabled;
+  private final List<String> destroyOperatorNames;
+  private final List<String> repairOperatorNames;
   private final List<Double> currentObjectiveValues = new ArrayList<>();
   private final List<Double> bestObjectiveValues = new ArrayList<>();
   private final List<Long> iterationRuntimesNanos = new ArrayList<>();
@@ -29,13 +31,24 @@ public final class AlnsStatistics {
   private final long[][] repairOperatorCounts;
 
   AlnsStatistics(int destroyOperatorCount, int repairOperatorCount) {
-    this(true, destroyOperatorCount, repairOperatorCount);
+    this(
+        Alns.defaultOperatorNames("destroy", destroyOperatorCount),
+        Alns.defaultOperatorNames("repair", repairOperatorCount));
   }
 
-  private AlnsStatistics(boolean enabled, int destroyOperatorCount, int repairOperatorCount) {
+  AlnsStatistics(List<String> destroyOperatorNames, List<String> repairOperatorNames) {
+    this(true, destroyOperatorNames, repairOperatorNames);
+  }
+
+  private AlnsStatistics(
+      boolean enabled, List<String> destroyOperatorNames, List<String> repairOperatorNames) {
     this.enabled = enabled;
-    this.destroyOperatorCounts = new long[destroyOperatorCount][SolutionStatus.values().length];
-    this.repairOperatorCounts = new long[repairOperatorCount][SolutionStatus.values().length];
+    this.destroyOperatorNames = List.copyOf(destroyOperatorNames);
+    this.repairOperatorNames = List.copyOf(repairOperatorNames);
+    this.destroyOperatorCounts =
+        new long[destroyOperatorNames.size()][SolutionStatus.values().length];
+    this.repairOperatorCounts =
+        new long[repairOperatorNames.size()][SolutionStatus.values().length];
   }
 
   static AlnsStatistics disabled() {
@@ -72,6 +85,28 @@ public final class AlnsStatistics {
    */
   public boolean isEnabled() {
     return enabled;
+  }
+
+  /**
+   * Returns the destroy operator names; position {@code i} names destroy operator {@code i}.
+   *
+   * @return an unmodifiable list of destroy operator names
+   * @throws IllegalStateException if statistics collection is disabled
+   */
+  public List<String> getDestroyOperatorNames() {
+    ensureEnabled();
+    return destroyOperatorNames;
+  }
+
+  /**
+   * Returns the repair operator names; position {@code i} names repair operator {@code i}.
+   *
+   * @return an unmodifiable list of repair operator names
+   * @throws IllegalStateException if statistics collection is disabled
+   */
+  public List<String> getRepairOperatorNames() {
+    ensureEnabled();
+    return repairOperatorNames;
   }
 
   /**

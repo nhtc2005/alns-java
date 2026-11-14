@@ -16,8 +16,10 @@ import io.github.nhtc2005.alns.selection.RandomOperatorSelector;
 import io.github.nhtc2005.alns.stopping.StoppingContext;
 import io.github.nhtc2005.alns.stopping.StoppingCriterion;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,8 @@ public final class Alns<S extends Solution<S>> {
   private final RandomGenerator randomGenerator;
   private final List<DestroyOperator<S>> destroyOperators;
   private final List<RepairOperator<S>> repairOperators;
+  private final List<String> destroyOperatorNames;
+  private final List<String> repairOperatorNames;
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
@@ -124,6 +128,8 @@ public final class Alns<S extends Solution<S>> {
         collectStatistics,
         visitedSolutionTracker,
         null,
+        null,
+        null,
         null);
   }
 
@@ -135,11 +141,17 @@ public final class Alns<S extends Solution<S>> {
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker,
       LocalSearch<S> localSearch,
-      IterationCallback<S> iterationCallback) {
+      IterationCallback<S> iterationCallback,
+      List<String> destroyOperatorNames,
+      List<String> repairOperatorNames) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
     this.repairOperators = copyNonEmpty(repairOperators, "repairOperators");
+    this.destroyOperatorNames =
+        copyOperatorNames(destroyOperatorNames, this.destroyOperators.size(), "destroy");
+    this.repairOperatorNames =
+        copyOperatorNames(repairOperatorNames, this.repairOperators.size(), "repair");
     this.operatorSelector =
         Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
     this.collectStatistics = collectStatistics;
@@ -220,7 +232,7 @@ public final class Alns<S extends Solution<S>> {
     visitedSolutionTracker.recordIfNew(currentSolution);
     AlnsStatistics statistics =
         collectStatistics
-            ? new AlnsStatistics(destroyOperators.size(), repairOperators.size())
+            ? new AlnsStatistics(destroyOperatorNames, repairOperatorNames)
             : AlnsStatistics.disabled();
     if (collectStatistics) {
       statistics.collectInitial(
@@ -231,8 +243,8 @@ public final class Alns<S extends Solution<S>> {
       LOGGER.info(
           "Starting ALNS: initialObjective={}, destroyOperators={}, repairOperators={}",
           currentSolution.getObjectiveValue(),
-          destroyOperators.size(),
-          repairOperators.size());
+          destroyOperatorNames,
+          repairOperatorNames);
     }
 
     while (!stoppingCriterion.shouldStop(
@@ -335,8 +347,8 @@ public final class Alns<S extends Solution<S>> {
         LOGGER.trace(
             "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",
             iteration,
-            operatorSelection.destroyOperatorIndex(),
-            operatorSelection.repairOperatorIndex(),
+            destroyOperatorNames.get(operatorSelection.destroyOperatorIndex()),
+            repairOperatorNames.get(operatorSelection.repairOperatorIndex()),
             status,
             candidateSolution.getObjectiveValue(),
             currentSolution.getObjectiveValue(),
@@ -382,6 +394,34 @@ public final class Alns<S extends Solution<S>> {
     return List.copyOf(values);
   }
 
+  static List<String> defaultOperatorNames(String kind, int count) {
+    List<String> names = new ArrayList<>(count);
+    for (int index = 0; index < count; index++) {
+      names.add(defaultOperatorName(kind, index));
+    }
+    return List.copyOf(names);
+  }
+
+  private static String defaultOperatorName(String kind, int index) {
+    return kind + "-" + index;
+  }
+
+  private static List<String> copyOperatorNames(List<String> names, int count, String kind) {
+    if (names == null) {
+      return defaultOperatorNames(kind, count);
+    }
+    Set<String> uniqueNames = new HashSet<>();
+    for (String name : names) {
+      if (name.isBlank()) {
+        throw new IllegalArgumentException(kind + " operator names must not be blank.");
+      }
+      if (!uniqueNames.add(name)) {
+        throw new IllegalArgumentException("Duplicate " + kind + " operator name: '" + name + "'.");
+      }
+    }
+    return List.copyOf(names);
+  }
+
   private static <S extends Solution<S>> S copyOf(S solution, String message) {
     return Objects.requireNonNull(solution.copy(), message);
   }
@@ -412,6 +452,8 @@ public final class Alns<S extends Solution<S>> {
     private RandomGenerator randomGenerator;
     private final List<DestroyOperator<S>> destroyOperators = new ArrayList<>();
     private final List<RepairOperator<S>> repairOperators = new ArrayList<>();
+    private final List<String> destroyOperatorNames = new ArrayList<>();
+    private final List<String> repairOperatorNames = new ArrayList<>();
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
@@ -434,28 +476,64 @@ public final class Alns<S extends Solution<S>> {
     }
 
     /**
-     * Appends a destroy operator; insertion order defines its index.
+     * Appends a destroy operator named {@code destroy-<index>}; insertion order defines its index.
      *
      * @param destroyOperator the destroy operator to append
      * @return this builder
      * @throws NullPointerException if {@code destroyOperator} is null
      */
     public Builder<S> addDestroyOperator(DestroyOperator<S> destroyOperator) {
+      return addDestroyOperator(
+          defaultOperatorName("destroy", destroyOperators.size()), destroyOperator);
+    }
+
+    /**
+     * Appends a named destroy operator; insertion order defines its index.
+     *
+     * <p>Names are used in logs and statistics and must be non-blank and unique among destroy
+     * operators.
+     *
+     * @param name the operator name
+     * @param destroyOperator the destroy operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code name} or {@code destroyOperator} is null
+     */
+    public Builder<S> addDestroyOperator(String name, DestroyOperator<S> destroyOperator) {
+      Objects.requireNonNull(name, "destroyOperatorName must not be null.");
       destroyOperators.add(
           Objects.requireNonNull(destroyOperator, "destroyOperator must not be null."));
+      destroyOperatorNames.add(name);
       return this;
     }
 
     /**
-     * Appends a repair operator; insertion order defines its index.
+     * Appends a repair operator named {@code repair-<index>}; insertion order defines its index.
      *
      * @param repairOperator the repair operator to append
      * @return this builder
      * @throws NullPointerException if {@code repairOperator} is null
      */
     public Builder<S> addRepairOperator(RepairOperator<S> repairOperator) {
+      return addRepairOperator(
+          defaultOperatorName("repair", repairOperators.size()), repairOperator);
+    }
+
+    /**
+     * Appends a named repair operator; insertion order defines its index.
+     *
+     * <p>Names are used in logs and statistics and must be non-blank and unique among repair
+     * operators.
+     *
+     * @param name the operator name
+     * @param repairOperator the repair operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code name} or {@code repairOperator} is null
+     */
+    public Builder<S> addRepairOperator(String name, RepairOperator<S> repairOperator) {
+      Objects.requireNonNull(name, "repairOperatorName must not be null.");
       repairOperators.add(
           Objects.requireNonNull(repairOperator, "repairOperator must not be null."));
+      repairOperatorNames.add(name);
       return this;
     }
 
@@ -528,7 +606,8 @@ public final class Alns<S extends Solution<S>> {
      * @return a solver with copied operator lists and shared component instances
      * @throws NullPointerException if no random generator was configured
      * @throws IllegalStateException if either operator list is empty
-     * @throws IllegalArgumentException if the selector rejects the operator counts
+     * @throws IllegalArgumentException if an operator name is blank or duplicated within its group,
+     *     or the selector rejects the operator counts
      */
     public Alns<S> build() {
       RandomGenerator configuredRandomGenerator =
@@ -554,7 +633,9 @@ public final class Alns<S extends Solution<S>> {
           collectStatistics,
           visitedSolutionTracker,
           localSearch,
-          iterationCallback);
+          iterationCallback,
+          destroyOperatorNames,
+          repairOperatorNames);
     }
   }
 }

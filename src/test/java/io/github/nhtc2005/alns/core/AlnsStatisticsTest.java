@@ -26,6 +26,8 @@ class AlnsStatisticsTest {
     statistics.collectIteration(new OperatorSelection(1, 2), SolutionStatus.BEST, 70.0, 70.0, 13);
 
     assertTrue(statistics.isEnabled());
+    assertEquals(List.of("destroy-0", "destroy-1"), statistics.getDestroyOperatorNames());
+    assertEquals(List.of("repair-0", "repair-1", "repair-2"), statistics.getRepairOperatorNames());
     assertEquals(
         List.of(100.0, 80.0, 80.0, 85.0, 90.0, 70.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 80.0, 80.0, 80.0, 80.0, 70.0), statistics.getBestObjectiveValues());
@@ -82,6 +84,8 @@ class AlnsStatisticsTest {
     assertFalse(statistics.isEnabled());
     List<Executable> getters =
         List.of(
+            statistics::getDestroyOperatorNames,
+            statistics::getRepairOperatorNames,
             statistics::getCurrentObjectiveValues,
             statistics::getBestObjectiveValues,
             statistics::getIterationRuntimesNanos,

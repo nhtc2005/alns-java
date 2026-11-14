@@ -104,6 +104,74 @@ class AlnsTest {
   }
 
   @Test
+  void builder_ShouldThrowException_WhenOperatorNameIsNull() {
+    Alns.Builder<TestSolution> builder = Alns.builder();
+
+    NullPointerException destroyException =
+        assertThrows(
+            NullPointerException.class,
+            () -> builder.addDestroyOperator(null, mockDestroyOperator));
+
+    assertEquals("destroyOperatorName must not be null.", destroyException.getMessage());
+
+    NullPointerException repairException =
+        assertThrows(
+            NullPointerException.class, () -> builder.addRepairOperator(null, mockRepairOperator));
+
+    assertEquals("repairOperatorName must not be null.", repairException.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "' ', remove, destroy operator names must not be blank.",
+    "remove, remove, Duplicate destroy operator name: 'remove'.",
+    "destroy-1, , Duplicate destroy operator name: 'destroy-1'."
+  })
+  void builder_ShouldThrowException_WhenDestroyOperatorNamesAreInvalid(
+      String firstName, String secondName, String expectedMessage) {
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(mockRandomGenerator)
+            .addDestroyOperator(firstName, mockDestroyOperator)
+            .addRepairOperator(mockRepairOperator);
+    if (secondName == null) {
+      builder.addDestroyOperator(mockDestroyOperator);
+    } else {
+      builder.addDestroyOperator(secondName, mockDestroyOperator);
+    }
+
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, builder::build);
+
+    assertEquals(expectedMessage, exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "' ', insert, repair operator names must not be blank.",
+    "insert, insert, Duplicate repair operator name: 'insert'.",
+    "repair-1, , Duplicate repair operator name: 'repair-1'."
+  })
+  void builder_ShouldThrowException_WhenRepairOperatorNamesAreInvalid(
+      String firstName, String secondName, String expectedMessage) {
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(mockRandomGenerator)
+            .addDestroyOperator(mockDestroyOperator)
+            .addRepairOperator(firstName, mockRepairOperator);
+    if (secondName == null) {
+      builder.addRepairOperator(mockRepairOperator);
+    } else {
+      builder.addRepairOperator(secondName, mockRepairOperator);
+    }
+
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, builder::build);
+
+    assertEquals(expectedMessage, exception.getMessage());
+  }
+
+  @Test
   void builder_ShouldThrowException_WhenLocalSearchIsNull() {
     NullPointerException exception =
         assertThrows(
