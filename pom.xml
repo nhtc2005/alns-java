@@ -7,7 +7,7 @@
 
     <groupId>io.github.nhtc2005</groupId>
     <artifactId>alns</artifactId>
-    <version>0.0.1</version>
+    <version>0.1.0</version>
 
     <name>ALNS Java</name>
     <description>
@@ -52,6 +52,7 @@
         <mockito.version>5.24.0</mockito.version>
         <maven.compiler.plugin.version>3.16.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.6.1</maven.surefire.plugin.version>
+        <maven.source.plugin.version>3.4.0</maven.source.plugin.version>
         <maven.javadoc.plugin.version>3.11.2</maven.javadoc.plugin.version>
         <mathjax.version>3.2.2</mathjax.version>
         <jacoco.maven.plugin.version>0.8.16</jacoco.maven.plugin.version>
@@ -99,6 +100,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>${maven.javadoc.plugin.version}</version>
                 <configuration>
+                    <failOnWarnings>true</failOnWarnings>
                     <additionalOptions>
                         <additionalOption>--allow-script-in-comments</additionalOption>
                     </additionalOptions>
@@ -162,5 +164,40 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>${maven.source.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadoc</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
