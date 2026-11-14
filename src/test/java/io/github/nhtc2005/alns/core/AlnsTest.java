@@ -636,7 +636,9 @@ class AlnsTest {
     assertSame(candidates.get(3), contexts.get(4).currentSolution());
     assertSame(result.bestSolution(), contexts.get(4).bestSolution());
     assertEquals(collectStatistics, result.statistics().isEnabled());
-    assertEquals(collectStatistics ? 6 : 0, result.statistics().getIterationRuntimesNanos().size());
+    if (collectStatistics) {
+      assertEquals(6, result.statistics().getIterationRuntimesNanos().size());
+    }
   }
 
   @Test

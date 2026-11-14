@@ -11,9 +11,10 @@ import java.util.Objects;
  *
  * <p>Enabled histories and runtimes contain an entry for the initial solution followed by one entry
  * per completed iteration, so index {@code k} corresponds to iteration {@code k}; the initial
- * runtime is zero. Disabled statistics have empty histories and zero totals. Outcomes are counted
- * independently of reward eligibility, and each operator in a selected pair receives the pair's
- * outcome. Retaining full histories uses memory proportional to iteration count.
+ * runtime is zero. Data getters throw {@link IllegalStateException} when collection is disabled.
+ * Outcomes are counted independently of reward eligibility, and each operator in a selected pair
+ * receives the pair's outcome. Retaining full histories uses memory proportional to iteration
+ * count.
  */
 public final class AlnsStatistics {
 
@@ -77,8 +78,10 @@ public final class AlnsStatistics {
    * Returns an unmodifiable snapshot of current objectives, including the initial value.
    *
    * @return an unmodifiable snapshot of current objectives, including the initial value
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Double> getCurrentObjectiveValues() {
+    ensureEnabled();
     return List.copyOf(currentObjectiveValues);
   }
 
@@ -86,8 +89,10 @@ public final class AlnsStatistics {
    * Returns an unmodifiable snapshot of best objectives, including the initial value.
    *
    * @return an unmodifiable snapshot of best objectives, including the initial value
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Double> getBestObjectiveValues() {
+    ensureEnabled();
     return List.copyOf(bestObjectiveValues);
   }
 
@@ -99,8 +104,10 @@ public final class AlnsStatistics {
    * feedback, but excludes stopping checks, statistics collection, and iteration callbacks.
    *
    * @return an unmodifiable snapshot of iteration runtimes in nanoseconds
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Long> getIterationRuntimesNanos() {
+    ensureEnabled();
     return List.copyOf(iterationRuntimesNanos);
   }
 
@@ -110,11 +117,12 @@ public final class AlnsStatistics {
    * @param operatorIndex the zero-based operator index
    * @param status the outcome to count
    * @return the number of iterations with that operator and outcome
-   * @throws IndexOutOfBoundsException if the index is invalid, including when statistics are
-   *     disabled
+   * @throws IllegalStateException if statistics collection is disabled
+   * @throws IndexOutOfBoundsException if the index is invalid
    * @throws NullPointerException if {@code status} is null
    */
   public long getDestroyOperatorCount(int operatorIndex, SolutionStatus status) {
+    ensureEnabled();
     Objects.checkIndex(operatorIndex, destroyOperatorCounts.length);
     Objects.requireNonNull(status, "status must not be null.");
     return destroyOperatorCounts[operatorIndex][status.ordinal()];
@@ -126,11 +134,12 @@ public final class AlnsStatistics {
    * @param operatorIndex the zero-based operator index
    * @param status the outcome to count
    * @return the number of iterations with that operator and outcome
-   * @throws IndexOutOfBoundsException if the index is invalid, including when statistics are
-   *     disabled
+   * @throws IllegalStateException if statistics collection is disabled
+   * @throws IndexOutOfBoundsException if the index is invalid
    * @throws NullPointerException if {@code status} is null
    */
   public long getRepairOperatorCount(int operatorIndex, SolutionStatus status) {
+    ensureEnabled();
     Objects.checkIndex(operatorIndex, repairOperatorCounts.length);
     Objects.requireNonNull(status, "status must not be null.");
     return repairOperatorCounts[operatorIndex][status.ordinal()];
@@ -140,11 +149,20 @@ public final class AlnsStatistics {
    * Returns the total number of iterations with the specified outcome.
    *
    * @param status the outcome to count
-   * @return the outcome count, or zero when collection is disabled
+   * @return the outcome count
+   * @throws IllegalStateException if statistics collection is disabled
    * @throws NullPointerException if {@code status} is null
    */
   public long getStatusCount(SolutionStatus status) {
+    ensureEnabled();
     Objects.requireNonNull(status, "status must not be null.");
     return statusCounts[status.ordinal()];
+  }
+
+  private void ensureEnabled() {
+    if (!enabled) {
+      throw new IllegalStateException(
+          "Statistics collection is disabled; enable it with collectStatistics(true).");
+    }
   }
 }

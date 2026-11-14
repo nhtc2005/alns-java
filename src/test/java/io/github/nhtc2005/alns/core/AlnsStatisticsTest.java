@@ -6,6 +6,7 @@ import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.selection.OperatorSelection;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -75,22 +76,24 @@ class AlnsStatisticsTest {
   }
 
   @Test
-  void disabled_ShouldExposeEmptyStatistics_WhenCollectionIsDisabled() {
+  void disabled_ShouldThrowException_WhenStatisticsAreRequested() {
     AlnsStatistics statistics = AlnsStatistics.disabled();
 
     assertFalse(statistics.isEnabled());
-    assertTrue(statistics.getCurrentObjectiveValues().isEmpty());
-    assertTrue(statistics.getBestObjectiveValues().isEmpty());
-    assertTrue(statistics.getIterationRuntimesNanos().isEmpty());
-    for (SolutionStatus status : SolutionStatus.values()) {
-      assertEquals(0L, statistics.getStatusCount(status));
+    List<Executable> getters =
+        List.of(
+            statistics::getCurrentObjectiveValues,
+            statistics::getBestObjectiveValues,
+            statistics::getIterationRuntimesNanos,
+            () -> statistics.getStatusCount(SolutionStatus.BEST),
+            () -> statistics.getDestroyOperatorCount(0, SolutionStatus.BEST),
+            () -> statistics.getRepairOperatorCount(0, SolutionStatus.BEST));
+    for (Executable getter : getters) {
+      IllegalStateException exception = assertThrows(IllegalStateException.class, getter);
+      assertEquals(
+          "Statistics collection is disabled; enable it with collectStatistics(true).",
+          exception.getMessage());
     }
-    assertThrows(
-        IndexOutOfBoundsException.class,
-        () -> statistics.getDestroyOperatorCount(0, SolutionStatus.BEST));
-    assertThrows(
-        IndexOutOfBoundsException.class,
-        () -> statistics.getRepairOperatorCount(0, SolutionStatus.BEST));
   }
 
   @ParameterizedTest

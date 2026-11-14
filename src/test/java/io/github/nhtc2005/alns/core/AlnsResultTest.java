@@ -19,8 +19,10 @@ class AlnsResultTest {
     assertEquals(3, result.totalIterations());
     assertEquals(100, result.elapsedNanos());
     assertFalse(result.statistics().isEnabled());
-    assertTrue(result.statistics().getCurrentObjectiveValues().isEmpty());
-    assertEquals(0L, result.statistics().getStatusCount(SolutionStatus.BEST));
+    assertThrows(
+        IllegalStateException.class, () -> result.statistics().getCurrentObjectiveValues());
+    assertThrows(
+        IllegalStateException.class, () -> result.statistics().getStatusCount(SolutionStatus.BEST));
   }
 
   @Test

@@ -77,11 +77,10 @@ class AlnsStatisticsIntegrationTest {
         alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
 
     assertEquals(collectStatistics, result.statistics().isEnabled());
-    assertEquals(
-        collectStatistics ? List.of(100.0, 100.0, 100.0) : List.of(),
-        result.statistics().getCurrentObjectiveValues());
-    assertEquals(
-        collectStatistics ? 2 : 0, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
+    if (collectStatistics) {
+      assertEquals(List.of(100.0, 100.0, 100.0), result.statistics().getCurrentObjectiveValues());
+      assertEquals(2, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
+    }
   }
 
   @Test
@@ -285,12 +284,10 @@ class AlnsStatisticsIntegrationTest {
     AlnsStatistics statistics = result.statistics();
     assertEquals(2, result.totalIterations());
     assertFalse(statistics.isEnabled());
-    assertTrue(statistics.getCurrentObjectiveValues().isEmpty());
-    assertTrue(statistics.getBestObjectiveValues().isEmpty());
-    assertTrue(statistics.getIterationRuntimesNanos().isEmpty());
-    for (SolutionStatus status : SolutionStatus.values()) {
-      assertEquals(0, statistics.getStatusCount(status));
-    }
+    assertThrows(IllegalStateException.class, statistics::getCurrentObjectiveValues);
+    assertThrows(IllegalStateException.class, statistics::getBestObjectiveValues);
+    assertThrows(IllegalStateException.class, statistics::getIterationRuntimesNanos);
+    assertThrows(IllegalStateException.class, () -> statistics.getStatusCount(SolutionStatus.BEST));
   }
 
   private enum DisabledConfiguration {
