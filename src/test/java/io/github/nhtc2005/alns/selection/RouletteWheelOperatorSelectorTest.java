@@ -84,23 +84,6 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @Test
-  void constructor_ShouldInitializeWeights_WhenResetIsOverridden() {
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        assertDoesNotThrow(
-            () ->
-                new RouletteWheelOperatorSelector<TestSolution>(
-                    2, 2, new double[] {7, 3, 1, 0}, 0.5) {
-                  @Override
-                  public void reset() {
-                    throw new IllegalStateException("reset must not be called by the constructor.");
-                  }
-                });
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
-  }
-
-  @Test
   void getScores_ShouldPreserveConfiguredScores_WhenCallerModifiesInputOrReturnedArray() {
     double[] scores = {7, 3, 1, 0};
     RouletteWheelOperatorSelector<TestSolution> selector =

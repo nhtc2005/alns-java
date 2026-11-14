@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <S> the solution type
  */
-public class NoImprovement<S extends Solution<S>> implements StoppingCriterion<S> {
+public final class NoImprovement<S extends Solution<S>> implements StoppingCriterion<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(NoImprovement.class);
 

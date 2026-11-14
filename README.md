@@ -29,12 +29,15 @@ not bundled in the release JAR.
 
 ## API documentation
 
-`alns` provides the ALNS algorithm, along with acceptance criteria, operator
-selection policies, and stopping criteria. To solve your own problem, provide:
+Build a solver with `Alns.builder()` using your own `Solution<S>` type and
+problem-specific destroy and repair operators. The builder lets you choose an
+operator selection policy and optionally enable local search, visited-solution
+tracking, statistics, and iteration callbacks. These optional features are
+disabled by default; visit tracking controls operator reward eligibility without
+preventing repeated solutions from being accepted.
 
-- A solution type implementing `Solution<S>`.
-- A feasible initial solution.
-- One or more destroy and repair operators tailored to your problem.
+Start the search with `solve(...)`, supplying a feasible initial solution and
+your choice of acceptance and stopping criteria.
 
 The [API documentation for version 0.1.0](https://nhtc2005.github.io/alns-java/)
 is available on GitHub Pages. To generate it locally, see

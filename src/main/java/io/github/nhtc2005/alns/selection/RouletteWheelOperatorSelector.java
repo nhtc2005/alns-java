@@ -21,7 +21,8 @@ import org.slf4j.LoggerFactory;
  *
  * @param <S> the solution type
  */
-public class RouletteWheelOperatorSelector<S extends Solution<S>> implements OperatorSelector<S> {
+public final class RouletteWheelOperatorSelector<S extends Solution<S>>
+    implements OperatorSelector<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RouletteWheelOperatorSelector.class);
 

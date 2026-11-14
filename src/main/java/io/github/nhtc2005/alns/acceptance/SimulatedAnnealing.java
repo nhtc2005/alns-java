@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <S> the solution type
  */
-public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
+public final class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SimulatedAnnealing.class);
 
