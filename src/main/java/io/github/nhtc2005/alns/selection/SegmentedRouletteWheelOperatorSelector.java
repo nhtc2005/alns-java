@@ -17,10 +17,10 @@ import org.slf4j.LoggerFactory;
  * <p>\[ w_i' = \theta w_i + (1 - \theta) \frac{\Sigma_i}{n_i}. \]
  *
  * <p>Here \(\theta\) is {@code decay}, and \(\Sigma_i\) is the sum of scores credited to operator
- * \(i\) in that segment, and \(n_i\) is its selection count. Ineligible feedback contributes zero
- * score but still counts as a selection and advances the segment. Operators with no selections
- * retain their weights. Segment scores and selection counts are cleared after updating. Instances
- * hold mutable state and must not be shared by concurrent runs.
+ * \(i\) in that segment, and \(n_i\) is its selection count. Ineligible feedback contributes the
+ * rejected-outcome score {@code scores[3]}, counts as a selection, and advances the segment.
+ * Operators with no selections retain their weights. Segment scores and selection counts are
+ * cleared after updating. Instances hold mutable state and must not be shared by concurrent runs.
  *
  * @param <S> the solution type
  */
@@ -139,7 +139,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
               case ACCEPTED -> scores[2];
               case REJECTED -> scores[3];
             }
-            : 0.0;
+            : scores[3];
 
     double destroySegmentScore = destroyOperatorSegmentScores[destroyOperatorIndex] + score;
     double repairSegmentScore = repairOperatorSegmentScores[repairOperatorIndex] + score;

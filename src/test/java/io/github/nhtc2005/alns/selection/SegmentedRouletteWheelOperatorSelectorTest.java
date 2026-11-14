@@ -231,9 +231,10 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   @EnumSource(
       value = SolutionStatus.class,
       names = {"BETTER", "ACCEPTED"})
-  void update_ShouldAdvanceSegmentWithoutAddingScore_WhenFeedbackIsNotRewardEligible(
+  void update_ShouldAdvanceSegmentWithRejectedScore_WhenFeedbackIsNotRewardEligible(
       SolutionStatus status) {
-    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 3);
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector =
+        new SegmentedRouletteWheelOperatorSelector<>(2, 2, new double[] {7, 3, 1, 2}, 0.5, 3);
     selector.update(feedback(1, 0, SolutionStatus.BEST));
 
     selector.update(
@@ -241,8 +242,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
             new OperatorSelection(1, 0), new TestSolution(100.0), status, false));
 
     assertEquals(2, selector.getIterationsInSegment());
-    assertArrayEquals(new double[] {0, 7}, selector.getDestroyOperatorSegmentScores());
-    assertArrayEquals(new double[] {7, 0}, selector.getRepairOperatorSegmentScores());
+    assertArrayEquals(new double[] {0, 9}, selector.getDestroyOperatorSegmentScores());
+    assertArrayEquals(new double[] {9, 0}, selector.getRepairOperatorSegmentScores());
     assertArrayEquals(new double[] {1, 1}, selector.getDestroyOperatorWeights());
     assertArrayEquals(new double[] {1, 1}, selector.getRepairOperatorWeights());
 
@@ -253,8 +254,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     assertEquals(0, selector.getIterationsInSegment());
     assertArrayEquals(new double[] {0, 0}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {0, 0}, selector.getRepairOperatorSegmentScores());
-    assertArrayEquals(new double[] {0.5, 2.25}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {2.25, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1.5, 2.75}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {2.75, 1.5}, selector.getRepairOperatorWeights());
   }
 
   @Test

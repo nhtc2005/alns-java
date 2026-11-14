@@ -14,7 +14,8 @@ import io.github.nhtc2005.alns.selection.OperatorSelection;
  *     solution
  * @param elapsedNanos the elapsed search time in nanoseconds before this callback
  * @param status the candidate outcome
- * @param isRewardEligible whether the configured outcome score may be applied
+ * @param isRewardEligible whether the configured outcome score may be applied; otherwise the
+ *     rejected-outcome score applies
  * @param operatorSelection the operator pair used in this iteration
  * @param candidateSolution the candidate after repair and optional local search, even if rejected
  * @param currentSolution the current feasible solution after evaluating the candidate

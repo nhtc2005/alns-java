@@ -15,8 +15,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>\[ w_i' = \theta w_i + (1 - \theta) s. \]
  *
- * <p>Here \(\theta\) is {@code decay}, and \(s\) is the outcome score, or zero when reward is
- * ineligible. Instances hold mutable weights and must not be shared by concurrent runs.
+ * <p>Here \(\theta\) is {@code decay}, and \(s\) is the outcome score, or the rejected-outcome
+ * score {@code scores[3]} when reward is ineligible. Instances hold mutable weights and must not be
+ * shared by concurrent runs.
  *
  * @param <S> the solution type
  */
@@ -111,7 +112,7 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
               case ACCEPTED -> scores[2];
               case REJECTED -> scores[3];
             }
-            : 0.0;
+            : scores[3];
 
     double oldDestroyWeight = destroyOperatorWeights[destroyOperatorIndex];
     double oldRepairWeight = repairOperatorWeights[repairOperatorIndex];

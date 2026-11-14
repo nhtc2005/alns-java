@@ -175,10 +175,11 @@ public final class Alns<S extends Solution<S>> {
    * statistics. The iteration runtime includes local search. Local search is not reset between
    * runs.
    *
-   * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
-   * eligible; other accepted candidates require a new key and an objective different from the
-   * current solution. Tracking does not prevent revisits. Exceptions from user components
-   * propagate.
+   * <p>Reward eligibility uses strict comparisons. New bests are always eligible; other accepted
+   * candidates are eligible only when their objective differs from the current solution and their
+   * key is new to the tracker. Ineligible feedback receives the rejected-outcome score. The tracker
+   * records the initial solution and accepted candidates; revisited candidates can still become
+   * current. Exceptions from user components propagate.
    *
    * <p>If configured, the iteration callback runs synchronously after feedback and statistics. It
    * runs even when statistics are disabled and is not reset between runs. Callback time counts

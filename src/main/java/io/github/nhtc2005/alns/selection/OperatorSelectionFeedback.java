@@ -15,7 +15,7 @@ import io.github.nhtc2005.alns.model.SolutionStatus;
  *     rejected
  * @param status the outcome assigned by the solver
  * @param isRewardEligible whether the configured outcome score may be applied; if false, the
- *     built-in adaptive selectors use zero score but still advance their update state
+ *     built-in adaptive selectors apply the rejected-outcome score instead
  */
 public record OperatorSelectionFeedback<S extends Solution<S>>(
     OperatorSelection operatorSelection,

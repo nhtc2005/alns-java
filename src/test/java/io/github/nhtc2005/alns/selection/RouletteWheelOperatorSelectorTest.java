@@ -222,17 +222,18 @@ class RouletteWheelOperatorSelectorTest {
   @EnumSource(
       value = SolutionStatus.class,
       names = {"BETTER", "ACCEPTED"})
-  void update_ShouldDecayOnlySelectedWeights_WhenFeedbackIsNotRewardEligible(
+  void update_ShouldApplyRejectedScoreToSelectedWeights_WhenFeedbackIsNotRewardEligible(
       SolutionStatus status) {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        new RouletteWheelOperatorSelector<>(2, 2, new double[] {7, 3, 1, 2}, 0.5);
     selector.update(feedback(1, 0, SolutionStatus.BEST));
 
     selector.update(
         new OperatorSelectionFeedback<>(
             new OperatorSelection(1, 0), new TestSolution(100.0), status, false));
 
-    assertArrayEquals(new double[] {1, 2}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {2, 1}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 3}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {3, 1}, selector.getRepairOperatorWeights());
   }
 
   @Test
