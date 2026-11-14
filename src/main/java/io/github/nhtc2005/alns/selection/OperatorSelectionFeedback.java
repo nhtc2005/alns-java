@@ -11,7 +11,8 @@ import io.github.nhtc2005.alns.model.SolutionStatus;
  *
  * @param <S> the solution type
  * @param operatorSelection the operator pair that produced the candidate
- * @param candidateSolution the repaired candidate, including when rejected
+ * @param candidateSolution the candidate after repair and optional local search, including when
+ *     rejected
  * @param status the outcome assigned by the solver
  * @param isRewardEligible whether the configured outcome score may be applied; if false, the
  *     built-in adaptive selectors use zero score but still advance their update state

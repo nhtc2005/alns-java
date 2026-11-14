@@ -20,6 +20,10 @@ public record AlnsResult<S extends Solution<S>>(
   /**
    * Creates a result with the supplied statistics.
    *
+   * @param bestSolution the best feasible solution found by the solver
+   * @param totalIterations the number of completed iterations
+   * @param elapsedNanos the search duration in nanoseconds, excluding component resets
+   * @param statistics the collected statistics, or a disabled statistics object
    * @throws NullPointerException if {@code statistics} is null
    */
   public AlnsResult {

@@ -4,6 +4,8 @@ import io.github.nhtc2005.alns.model.Solution;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Selects destroy and repair operators independently in proportion to their weights.
@@ -19,6 +21,8 @@ import java.util.random.RandomGenerator;
  * @param <S> the solution type
  */
 public class RouletteWheelOperatorSelector<S extends Solution<S>> implements OperatorSelector<S> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(RouletteWheelOperatorSelector.class);
 
   private final double[] scores;
   private final double decay;
@@ -109,10 +113,26 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
             }
             : 0.0;
 
+    double oldDestroyWeight = destroyOperatorWeights[destroyOperatorIndex];
+    double oldRepairWeight = repairOperatorWeights[repairOperatorIndex];
     destroyOperatorWeights[destroyOperatorIndex] =
         decay * destroyOperatorWeights[destroyOperatorIndex] + (1 - decay) * score;
     repairOperatorWeights[repairOperatorIndex] =
         decay * repairOperatorWeights[repairOperatorIndex] + (1 - decay) * score;
+    if (LOGGER.isTraceEnabled()) {
+      LOGGER.trace(
+          "Destroy operator {}: score={}, weight {} -> {}",
+          destroyOperatorIndex,
+          score,
+          oldDestroyWeight,
+          destroyOperatorWeights[destroyOperatorIndex]);
+      LOGGER.trace(
+          "Repair operator {}: score={}, weight {} -> {}",
+          repairOperatorIndex,
+          score,
+          oldRepairWeight,
+          repairOperatorWeights[repairOperatorIndex]);
+    }
   }
 
   /** Restores all operator weights to 1. */

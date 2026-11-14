@@ -6,6 +6,7 @@ import io.github.nhtc2005.alns.memory.VisitedSolutionTracker;
 import io.github.nhtc2005.alns.model.Solution;
 import io.github.nhtc2005.alns.model.SolutionStatus;
 import io.github.nhtc2005.alns.operator.DestroyOperator;
+import io.github.nhtc2005.alns.operator.LocalSearch;
 import io.github.nhtc2005.alns.operator.RepairOperator;
 import io.github.nhtc2005.alns.selection.OperatorSelection;
 import io.github.nhtc2005.alns.selection.OperatorSelectionContext;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.random.RandomGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs Adaptive Large Neighborhood Search with configurable operators and search policies.
@@ -30,12 +33,16 @@ import java.util.random.RandomGenerator;
  */
 public final class Alns<S extends Solution<S>> {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(Alns.class);
+
   private final RandomGenerator randomGenerator;
   private final List<DestroyOperator<S>> destroyOperators;
   private final List<RepairOperator<S>> repairOperators;
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
+  private final LocalSearch<S> localSearch;
+  private final IterationCallback<S> iterationCallback;
 
   /**
    * Creates a solver with statistics and visit tracking disabled.
@@ -109,6 +116,26 @@ public final class Alns<S extends Solution<S>> {
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker) {
+    this(
+        randomGenerator,
+        destroyOperators,
+        repairOperators,
+        operatorSelector,
+        collectStatistics,
+        visitedSolutionTracker,
+        null,
+        null);
+  }
+
+  private Alns(
+      RandomGenerator randomGenerator,
+      List<DestroyOperator<S>> destroyOperators,
+      List<RepairOperator<S>> repairOperators,
+      OperatorSelector<S> operatorSelector,
+      boolean collectStatistics,
+      VisitedSolutionTracker<S> visitedSolutionTracker,
+      LocalSearch<S> localSearch,
+      IterationCallback<S> iterationCallback) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
@@ -118,12 +145,14 @@ public final class Alns<S extends Solution<S>> {
     this.collectStatistics = collectStatistics;
     this.visitedSolutionTracker =
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
+    this.localSearch = localSearch;
+    this.iterationCallback = iterationCallback;
     this.operatorSelector.validateOperatorCounts(
         this.destroyOperators.size(), this.repairOperators.size());
   }
 
   /**
-   * Returns a builder with statistics and visit tracking disabled by default.
+   * Returns a builder with statistics, visit tracking, local search, and callbacks disabled.
    *
    * @param <S> the solution type
    * @return a new builder
@@ -140,10 +169,18 @@ public final class Alns<S extends Solution<S>> {
    * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
    * bests are accepted regardless of the acceptance decision.
    *
+   * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
+   * Its result is validated again and used by acceptance, tracking, feedback, and statistics. The
+   * iteration runtime includes local search. Local search is not reset between runs.
+   *
    * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
    * eligible; other accepted candidates require a new key and an objective different from the
    * current solution. Tracking does not prevent revisits. Exceptions from user components
    * propagate.
+   *
+   * <p>If configured, the iteration callback runs synchronously after feedback, statistics, and
+   * incrementing the iteration count. It runs even when statistics are disabled and is not reset
+   * between runs. Callback time counts toward total runtime, but not iteration statistics.
    *
    * @param initialSolution the non-null feasible initial solution with a finite objective
    * @param acceptanceCriterion the non-null acceptance policy
@@ -187,6 +224,14 @@ public final class Alns<S extends Solution<S>> {
           currentSolution.getObjectiveValue(), bestSolution.getObjectiveValue());
     }
 
+    if (LOGGER.isInfoEnabled()) {
+      LOGGER.info(
+          "Starting ALNS: initialObjective={}, destroyOperators={}, repairOperators={}",
+          currentSolution.getObjectiveValue(),
+          destroyOperators.size(),
+          repairOperators.size());
+    }
+
     while (!stoppingCriterion.shouldStop(
         new StoppingContext<>(
             iteration,
@@ -219,6 +264,13 @@ public final class Alns<S extends Solution<S>> {
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
       validateObjective(candidateSolution, "candidateSolution");
+      if (localSearch != null && candidateSolution.isFeasible()) {
+        candidateSolution =
+            Objects.requireNonNull(
+                localSearch.apply(candidateSolution, randomGenerator),
+                "LocalSearch.apply(...) must not return null.");
+        validateObjective(candidateSolution, "candidateSolution");
+      }
 
       SolutionStatus status;
       boolean isRewardEligible = true;
@@ -234,6 +286,13 @@ public final class Alns<S extends Solution<S>> {
                   randomGenerator));
 
       if (isFeasible && isBetter(candidateSolution, bestSolution)) {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug(
+              "New best at iteration {}: objective {} -> {}",
+              iteration + 1,
+              bestSolution.getObjectiveValue(),
+              candidateSolution.getObjectiveValue());
+        }
         currentSolution = candidateSolution;
         bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
         status = SolutionStatus.BEST;
@@ -263,9 +322,41 @@ public final class Alns<S extends Solution<S>> {
             iterationRuntimeNanos);
       }
       iteration++;
+      if (LOGGER.isTraceEnabled()) {
+        LOGGER.trace(
+            "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",
+            iteration,
+            operatorSelection.destroyOperatorIndex(),
+            operatorSelection.repairOperatorIndex(),
+            status,
+            candidateSolution.getObjectiveValue(),
+            currentSolution.getObjectiveValue(),
+            bestSolution.getObjectiveValue(),
+            isRewardEligible);
+      }
+      if (iterationCallback != null) {
+        iterationCallback.onIteration(
+            new IterationContext<>(
+                iteration,
+                System.nanoTime() - startedAt,
+                status,
+                isRewardEligible,
+                operatorSelection,
+                candidateSolution,
+                currentSolution,
+                bestSolution));
+      }
     }
 
-    return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
+    long elapsedNanos = System.nanoTime() - startedAt;
+    if (LOGGER.isInfoEnabled()) {
+      LOGGER.info(
+          "Finished ALNS: bestObjective={}, iterations={}, elapsedNanos={}",
+          bestSolution.getObjectiveValue(),
+          iteration,
+          elapsedNanos);
+    }
+    return new AlnsResult<>(bestSolution, iteration, elapsedNanos, statistics);
   }
 
   private static void validateObjective(Solution<?> solution, String name) {
@@ -315,6 +406,8 @@ public final class Alns<S extends Solution<S>> {
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
+    private LocalSearch<S> localSearch;
+    private IterationCallback<S> iterationCallback;
 
     private Builder() {}
 
@@ -397,6 +490,30 @@ public final class Alns<S extends Solution<S>> {
     }
 
     /**
+     * Sets optional local search for feasible repaired solutions; disabled by default.
+     *
+     * @param localSearch the local search to apply before candidate evaluation
+     * @return this builder
+     * @throws NullPointerException if {@code localSearch} is null
+     */
+    public Builder<S> localSearch(LocalSearch<S> localSearch) {
+      this.localSearch = Objects.requireNonNull(localSearch, "localSearch must not be null.");
+      return this;
+    }
+
+    /**
+     * Sets the callback invoked after each completed iteration; disabled by default.
+     *
+     * @param callback the synchronous callback, shared across runs
+     * @return this builder
+     * @throws NullPointerException if {@code callback} is null
+     */
+    public Builder<S> onIteration(IterationCallback<S> callback) {
+      this.iterationCallback = Objects.requireNonNull(callback, "callback must not be null.");
+      return this;
+    }
+
+    /**
      * Creates a solver and validates the selector's operator counts.
      *
      * @return a solver with copied operator lists and shared component instances
@@ -426,7 +543,9 @@ public final class Alns<S extends Solution<S>> {
           repairOperators,
           configuredOperatorSelector,
           collectStatistics,
-          visitedSolutionTracker);
+          visitedSolutionTracker,
+          localSearch,
+          iterationCallback);
     }
   }
 }

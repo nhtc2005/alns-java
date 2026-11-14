@@ -112,8 +112,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     configuredScores[0] = 0;
     selector.update(feedback(0, 0, SolutionStatus.BEST));
 
-    assertArrayEquals(new double[] {7.5, 0.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {7.5, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getRepairOperatorWeights());
   }
 
   @Test
@@ -146,16 +146,17 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     selector.update(feedback(0, 0, SolutionStatus.BEST));
 
-    assertArrayEquals(new double[] {7.5, 0.5}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getDestroyOperatorWeights());
     assertEquals(0, selector.getIterationsInSegment());
   }
 
   @Test
   void select_ShouldSkipZeroWeightOperators_WhenOtherWeightsArePositive() {
     SegmentedRouletteWheelOperatorSelector<TestSolution> selector =
-        new SegmentedRouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0, 2);
+        new SegmentedRouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0, 3);
+    selector.update(feedback(0, 0, SolutionStatus.REJECTED));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
-    selector.update(feedback(1, 1, SolutionStatus.REJECTED));
+    selector.update(feedback(2, 2, SolutionStatus.REJECTED));
     when(mockRandomGenerator.nextDouble()).thenReturn(0.0, Math.nextDown(1.0));
 
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
@@ -165,6 +166,7 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   void select_ShouldFallBackToUniformSelection_WhenAllWeightsAreZero() {
     SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.0, 1);
     selector.update(feedback(0, 0, SolutionStatus.REJECTED));
+    selector.update(feedback(1, 1, SolutionStatus.REJECTED));
     when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
 
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
@@ -187,6 +189,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   void select_ShouldReturnLastPositiveIndex_WhenRandomValueReachesTotalWeight() {
     SegmentedRouletteWheelOperatorSelector<TestSolution> selector =
         new SegmentedRouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0, 1);
+    selector.update(feedback(0, 0, SolutionStatus.REJECTED));
+    selector.update(feedback(2, 2, SolutionStatus.REJECTED));
     selector.update(feedback(1, 1, SolutionStatus.BEST));
     // Deliberately outside [0.0, 1.0) to exercise the defensive fallback.
     when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
@@ -201,8 +205,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     double[] destroyOperatorWeights = selector.getDestroyOperatorWeights();
     double[] repairOperatorWeights = selector.getRepairOperatorWeights();
-    assertArrayEquals(new double[] {0.5, 4}, destroyOperatorWeights);
-    assertArrayEquals(new double[] {4, 0.5}, repairOperatorWeights);
+    assertArrayEquals(new double[] {1, 4}, destroyOperatorWeights);
+    assertArrayEquals(new double[] {4, 1}, repairOperatorWeights);
     destroyOperatorWeights[1] = 0;
     repairOperatorWeights[0] = 0;
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
@@ -249,8 +253,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     assertEquals(0, selector.getIterationsInSegment());
     assertArrayEquals(new double[] {0, 0}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {0, 0}, selector.getRepairOperatorSegmentScores());
-    assertArrayEquals(new double[] {0.5, 4}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {4, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {0.5, 2.25}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {2.25, 0.5}, selector.getRepairOperatorWeights());
   }
 
   @Test
@@ -260,21 +264,21 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     selector.update(feedback(1, 0, SolutionStatus.REJECTED));
 
-    assertArrayEquals(new double[] {0.5, 1.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {1.5, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 1.5}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1.5, 1}, selector.getRepairOperatorWeights());
   }
 
   @ParameterizedTest
   @CsvSource({
-    "BEST, 0.5, 2, 7.5, 0.5",
-    "BETTER, 0.5, 2, 3.5, 0.5",
-    "ACCEPTED, 0.5, 2, 1.5, 0.5",
-    "REJECTED, 0.5, 2, 0.5, 0.5",
-    "BEST, 0.0, 2, 14.0, 0.0",
+    "BEST, 0.5, 2, 4.0, 1.0",
+    "BETTER, 0.5, 2, 2.0, 1.0",
+    "ACCEPTED, 0.5, 2, 1.0, 1.0",
+    "REJECTED, 0.5, 2, 0.5, 1.0",
+    "BEST, 0.0, 2, 7.0, 1.0",
     "BEST, 1.0, 2, 1.0, 1.0",
-    "BEST, 0.5, 1, 4.0, 0.5"
+    "BEST, 0.5, 1, 4.0, 1.0"
   })
-  void update_ShouldApplyScoresAndDecay_WhenSegmentCompletes(
+  void update_ShouldApplyAverageScoresAndPreserveUnusedWeights_WhenSegmentCompletes(
       SolutionStatus status,
       double decay,
       int segmentLength,
@@ -302,12 +306,12 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     selector.update(feedback(1, 0, SolutionStatus.BEST));
     selector.update(feedback(1, 1, SolutionStatus.BETTER));
 
-    assertArrayEquals(new double[] {0.5, 5.5}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1, 3}, selector.getDestroyOperatorWeights());
     assertArrayEquals(new double[] {4, 2}, selector.getRepairOperatorWeights());
   }
 
   @Test
-  void update_ShouldDiscardPreviousSegmentScores_WhenNextSegmentCompletes() {
+  void update_ShouldDiscardPreviousSegmentScoresAndCounts_WhenNextSegmentCompletes() {
     SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 2);
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     selector.update(feedback(0, 0, SolutionStatus.BEST));
@@ -316,13 +320,13 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     assertEquals(1, selector.getIterationsInSegment());
     assertArrayEquals(new double[] {0, 3}, selector.getDestroyOperatorSegmentScores());
     assertArrayEquals(new double[] {0, 3}, selector.getRepairOperatorSegmentScores());
-    assertArrayEquals(new double[] {7.5, 0.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {7.5, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getRepairOperatorWeights());
 
     selector.update(feedback(1, 1, SolutionStatus.BETTER));
 
-    assertArrayEquals(new double[] {3.75, 3.25}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {3.75, 3.25}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {4, 2}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 2}, selector.getRepairOperatorWeights());
     assertEquals(0, selector.getIterationsInSegment());
   }
 
@@ -339,8 +343,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     repairOperatorSegmentScores[0] = 0;
     selector.update(feedback(1, 0, SolutionStatus.BETTER));
 
-    assertArrayEquals(new double[] {0.5, 5.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {5.5, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 3}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {3, 1}, selector.getRepairOperatorWeights());
   }
 
   @ParameterizedTest
@@ -363,8 +367,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
 
     selector.update(feedback(1, 0, SolutionStatus.ACCEPTED));
 
-    assertArrayEquals(new double[] {0.5, 2.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {2.5, 0.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 1.5}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1.5, 1}, selector.getRepairOperatorWeights());
     assertEquals(0, selector.getIterationsInSegment());
   }
 
@@ -403,6 +407,26 @@ class SegmentedRouletteWheelOperatorSelectorTest {
   }
 
   @Test
+  void update_ShouldClearSelectionCounts_WhenSegmentCompletesOrSelectorResets() {
+    SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 2);
+    for (int segment = 0; segment < 2; segment++) {
+      selector.update(feedback(0, 0, SolutionStatus.BEST));
+      selector.update(feedback(0, 0, SolutionStatus.BETTER));
+    }
+
+    assertArrayEquals(new double[] {4, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {4, 1}, selector.getRepairOperatorWeights());
+
+    selector.update(feedback(0, 0, SolutionStatus.BEST));
+    selector.reset();
+    selector.update(feedback(0, 0, SolutionStatus.BEST));
+    selector.update(feedback(0, 0, SolutionStatus.BETTER));
+
+    assertArrayEquals(new double[] {3, 1}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {3, 1}, selector.getRepairOperatorWeights());
+  }
+
+  @Test
   void reset_ShouldClearWeightsAndPendingScores_WhenSelectorIsReused() {
     SegmentedRouletteWheelOperatorSelector<TestSolution> selector = selector(0.5, 2);
     selector.update(feedback(0, 0, SolutionStatus.BEST));
@@ -419,8 +443,8 @@ class SegmentedRouletteWheelOperatorSelectorTest {
     selector.update(feedback(1, 1, SolutionStatus.BETTER));
     selector.update(feedback(1, 1, SolutionStatus.BETTER));
 
-    assertArrayEquals(new double[] {0.5, 3.5}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {0.5, 3.5}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 2}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {1, 2}, selector.getRepairOperatorWeights());
   }
 
   private SegmentedRouletteWheelOperatorSelector<TestSolution> selector(

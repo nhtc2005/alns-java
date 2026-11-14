@@ -14,7 +14,8 @@ import java.util.random.RandomGenerator;
  *     iteration
  * @param bestSolution the best feasible solution found before evaluating the candidate
  * @param currentSolution the current feasible solution before evaluating the candidate
- * @param candidateSolution the repaired candidate, which may be infeasible
+ * @param candidateSolution the candidate after repair and optional local search, which may be
+ *     infeasible
  * @param randomGenerator the random generator used by the search
  */
 public record AcceptanceContext<S extends Solution<S>>(

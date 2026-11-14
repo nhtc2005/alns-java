@@ -2,6 +2,8 @@ package io.github.nhtc2005.alns.stopping;
 
 import io.github.nhtc2005.alns.model.Solution;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Stops after a configured number of iterations without a strictly better best objective.
@@ -13,6 +15,8 @@ import java.util.Objects;
  * @param <S> the solution type
  */
 public class NoImprovement<S extends Solution<S>> implements StoppingCriterion<S> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(NoImprovement.class);
 
   private final long maxIterations;
 
@@ -41,7 +45,15 @@ public class NoImprovement<S extends Solution<S>> implements StoppingCriterion<S
               context.bestSolution().copy(), "Solution.copy() must not return null.");
       lastImprovementIteration = context.iteration();
     }
-    return context.iteration() - lastImprovementIteration >= maxIterations;
+    long iterationsWithoutImprovement = context.iteration() - lastImprovementIteration;
+    boolean shouldStop = iterationsWithoutImprovement >= maxIterations;
+    if (shouldStop) {
+      LOGGER.debug(
+          "No-improvement limit reached: iterationsWithoutImprovement={}, limit={}",
+          iterationsWithoutImprovement,
+          maxIterations);
+    }
+    return shouldStop;
   }
 
   /** Clears the saved best solution and resets the last improvement iteration to zero. */
