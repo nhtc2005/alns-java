@@ -27,9 +27,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Runs Adaptive Large Neighborhood Search with configurable operators and search policies.
  *
- * <p>The objective is minimized. Use {@link #builder()} or a constructor to configure the solver,
- * then supply acceptance and stopping criteria to {@link #solve}. Instances share their configured
- * components and RNG across calls and must not be used for concurrent searches.
+ * <p>The objective is minimized. Use {@link #builder()} to configure the solver, then supply
+ * acceptance and stopping criteria to {@link #solve}. Instances share their configured components
+ * and RNG across calls and must not be used for concurrent searches.
  *
  * @param <S> the solution type
  */
@@ -48,91 +48,6 @@ public final class Alns<S extends Solution<S>> {
   private final LocalSearch<S> localSearch;
   private final IterationCallback<S> iterationCallback;
 
-  /**
-   * Creates a solver with statistics and visit tracking disabled.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector) {
-    this(randomGenerator, destroyOperators, repairOperators, operatorSelector, false);
-  }
-
-  /**
-   * Creates a solver with optional statistics and visit tracking disabled.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @param collectStatistics whether to retain histories and outcome counts
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector,
-      boolean collectStatistics) {
-    this(
-        randomGenerator,
-        destroyOperators,
-        repairOperators,
-        operatorSelector,
-        collectStatistics,
-        VisitedSolutionTracker.disabled());
-  }
-
-  /**
-   * Creates a solver with the supplied search components.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @param collectStatistics whether to retain histories and outcome counts
-   * @param visitedSolutionTracker the non-null tracker used for reward eligibility
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector,
-      boolean collectStatistics,
-      VisitedSolutionTracker<S> visitedSolutionTracker) {
-    this(
-        randomGenerator,
-        destroyOperators,
-        repairOperators,
-        operatorSelector,
-        collectStatistics,
-        visitedSolutionTracker,
-        null,
-        null,
-        null,
-        null);
-  }
-
   private Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
@@ -148,10 +63,8 @@ public final class Alns<S extends Solution<S>> {
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
     this.repairOperators = copyNonEmpty(repairOperators, "repairOperators");
-    this.destroyOperatorNames =
-        copyOperatorNames(destroyOperatorNames, this.destroyOperators.size(), "destroy");
-    this.repairOperatorNames =
-        copyOperatorNames(repairOperatorNames, this.repairOperators.size(), "repair");
+    this.destroyOperatorNames = copyOperatorNames(destroyOperatorNames, "destroy");
+    this.repairOperatorNames = copyOperatorNames(repairOperatorNames, "repair");
     this.operatorSelector =
         Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
     this.collectStatistics = collectStatistics;
@@ -406,10 +319,7 @@ public final class Alns<S extends Solution<S>> {
     return kind + "-" + index;
   }
 
-  private static List<String> copyOperatorNames(List<String> names, int count, String kind) {
-    if (names == null) {
-      return defaultOperatorNames(kind, count);
-    }
+  private static List<String> copyOperatorNames(List<String> names, String kind) {
     Set<String> uniqueNames = new HashSet<>();
     for (String name : names) {
       if (name.isBlank()) {

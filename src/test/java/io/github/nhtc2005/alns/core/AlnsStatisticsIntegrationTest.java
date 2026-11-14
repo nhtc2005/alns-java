@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,51 +35,20 @@ class AlnsStatisticsIntegrationTest {
   @EnumSource(DisabledConfiguration.class)
   void solve_ShouldLeaveStatisticsDisabled_WhenCollectionIsNotEnabled(
       DisabledConfiguration configuration) {
-    Alns<TestSolution> alns;
-    if (configuration == DisabledConfiguration.CONSTRUCTOR_DEFAULT) {
-      alns =
-          new Alns<TestSolution>(
-              new Random(1),
-              List.of((solution, randomGenerator) -> solution),
-              List.of((solution, randomGenerator) -> solution),
-              context -> new OperatorSelection(0, 0));
-    } else {
-      Alns.Builder<TestSolution> builder =
-          Alns.<TestSolution>builder()
-              .randomGenerator(new Random(1))
-              .addDestroyOperator((solution, randomGenerator) -> solution)
-              .addRepairOperator((solution, randomGenerator) -> solution);
-      if (configuration == DisabledConfiguration.BUILDER_EXPLICIT_FALSE) {
-        builder.collectStatistics(true).collectStatistics(false);
-      }
-      alns = builder.build();
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator((solution, randomGenerator) -> solution);
+    if (configuration == DisabledConfiguration.BUILDER_EXPLICIT_FALSE) {
+      builder.collectStatistics(true).collectStatistics(false);
     }
+    Alns<TestSolution> alns = builder.build();
 
     AlnsResult<TestSolution> result =
         alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
 
     assertDisabledStatistics(result);
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void solve_ShouldRespectCollectionFlag_WhenUsingConstructor(boolean collectStatistics) {
-    Alns<TestSolution> alns =
-        new Alns<TestSolution>(
-            new Random(1),
-            List.of((solution, randomGenerator) -> solution),
-            List.of((solution, randomGenerator) -> solution),
-            context -> new OperatorSelection(0, 0),
-            collectStatistics);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-
-    assertEquals(collectStatistics, result.statistics().isEnabled());
-    if (collectStatistics) {
-      assertEquals(List.of(100.0, 100.0, 100.0), result.statistics().getCurrentObjectiveValues());
-      assertEquals(2, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
-    }
   }
 
   @Test
@@ -295,8 +263,7 @@ class AlnsStatisticsIntegrationTest {
 
   private enum DisabledConfiguration {
     BUILDER_DEFAULT,
-    BUILDER_EXPLICIT_FALSE,
-    CONSTRUCTOR_DEFAULT
+    BUILDER_EXPLICIT_FALSE
   }
 
   private record RankedSolution(int rank, double objectiveValue)

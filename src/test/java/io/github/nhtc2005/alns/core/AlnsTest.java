@@ -217,58 +217,12 @@ class AlnsTest {
     verifyNoInteractions(mockOperatorSelector);
   }
 
-  @Test
-  void constructor_ShouldThrowException_WhenOperatorListIsEmpty() {
-    List<DestroyOperator<TestSolution>> emptyDestroyOperators = List.of();
-    List<RepairOperator<TestSolution>> validRepairOperators = List.of(mockRepairOperator);
-
-    IllegalArgumentException destroyException =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                new Alns<>(
-                    mockRandomGenerator,
-                    emptyDestroyOperators,
-                    validRepairOperators,
-                    mockOperatorSelector));
-
-    assertEquals("destroyOperators must not be empty.", destroyException.getMessage());
-
-    List<DestroyOperator<TestSolution>> validDestroyOperators = List.of(mockDestroyOperator);
-    List<RepairOperator<TestSolution>> emptyRepairOperators = List.of();
-
-    IllegalArgumentException repairException =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                new Alns<>(
-                    mockRandomGenerator,
-                    validDestroyOperators,
-                    emptyRepairOperators,
-                    mockOperatorSelector));
-
-    assertEquals("repairOperators must not be empty.", repairException.getMessage());
-  }
-
   @ParameterizedTest
   @CsvSource({"1, 2", "3, 2", "2, 1", "2, 3"})
-  void constructor_ShouldThrowException_WhenSelectorOperatorCountsMismatch(
-      int destroys, int repairs) {
+  void builder_ShouldThrowException_WhenSelectorOperatorCountsMismatch(int destroys, int repairs) {
     String expectedMessage =
         "Selector operator counts must match the configured destroy and repair operator counts.";
     for (OperatorSelector<TestSolution> selector : operatorCountSelectors(destroys, repairs)) {
-      IllegalArgumentException constructorException =
-          assertThrows(
-              IllegalArgumentException.class,
-              () ->
-                  new Alns<>(
-                      new Random(1),
-                      List.of(mockDestroyOperator, mockDestroyOperator),
-                      List.of(mockRepairOperator, mockRepairOperator),
-                      selector));
-
-      assertEquals(expectedMessage, constructorException.getMessage());
-
       IllegalArgumentException builderException =
           assertThrows(
               IllegalArgumentException.class,
@@ -279,21 +233,14 @@ class AlnsTest {
   }
 
   @Test
-  void constructor_ShouldNotThrowException_WhenSelectorOperatorCountsMatch() {
+  void builder_ShouldNotThrowException_WhenSelectorOperatorCountsMatch() {
     for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
-      assertDoesNotThrow(
-          () ->
-              new Alns<>(
-                  new Random(1),
-                  List.of(mockDestroyOperator, mockDestroyOperator),
-                  List.of(mockRepairOperator, mockRepairOperator),
-                  selector));
       assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
     }
   }
 
   @Test
-  void constructor_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
+  void builder_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
     OperatorSelector<TestSolution> selector =
         new OperatorSelector<>() {
           @Override

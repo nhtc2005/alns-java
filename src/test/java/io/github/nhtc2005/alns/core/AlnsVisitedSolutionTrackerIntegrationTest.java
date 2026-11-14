@@ -48,23 +48,6 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
   }
 
   @Test
-  void constructor_ShouldThrowException_WhenVisitedSolutionTrackerIsNull() {
-    NullPointerException exception =
-        assertThrows(
-            NullPointerException.class,
-            () ->
-                new Alns<TestSolution>(
-                    new Random(1),
-                    List.of(mockDestroyOperator),
-                    List.of(mockRepairOperator),
-                    mockOperatorSelector,
-                    false,
-                    null));
-
-    assertEquals("visitedSolutionTracker must not be null.", exception.getMessage());
-  }
-
-  @Test
   void solve_ShouldResetTrackerAndRecordInitialCopy_WhenStoppingBeforeFirstIteration() {
     TestSolution initialSolution = new TestSolution(100.0);
     Alns<TestSolution> alns =
@@ -318,28 +301,6 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     assertTrue(tracker.recordIfNew(new TestSolution(100.0)));
     assertFalse(tracker.recordIfNew(new TestSolution(200.0)));
     assertEquals(3, tracker.getVisitedSolutionCount());
-  }
-
-  @Test
-  void solve_ShouldUseProvidedTracker_WhenUsingConstructor() {
-    HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
-        new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
-    Alns<TestSolution> alns =
-        new Alns<TestSolution>(
-            new Random(1),
-            List.of((solution, randomGenerator) -> solution),
-            List.of(
-                (solution, randomGenerator) -> new TestSolution(solution.getObjectiveValue() - 1)),
-            context -> new OperatorSelection(0, 0),
-            false,
-            tracker);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-
-    assertEquals(3, tracker.getVisitedSolutionCount());
-    assertEquals(2, result.totalIterations());
-    assertEquals(98.0, result.bestSolution().getObjectiveValue());
   }
 
   @ParameterizedTest
