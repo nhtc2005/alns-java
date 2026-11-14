@@ -40,8 +40,10 @@ class NoImprovementTest {
 
     assertFalse(criterion.shouldStop(context(0, 100.0, 100.0)));
     assertEquals(0, criterion.getLastImprovementIteration());
+
     assertFalse(criterion.shouldStop(context(2, 90.0, 90.0)));
     assertEquals(2, criterion.getLastImprovementIteration());
+
     assertFalse(criterion.shouldStop(context(4, 90.0, 90.0)));
     assertTrue(criterion.shouldStop(context(5, 90.0, 90.0)));
     assertEquals(2, criterion.getLastImprovementIteration());
@@ -76,7 +78,9 @@ class NoImprovementTest {
     assertFalse(criterion.shouldStop(context(1, 90.0, 90.0)));
     assertEquals(1, criterion.getLastImprovementIteration());
     assertTrue(criterion.shouldStop(context(3, 90.0, 90.0)));
+
     criterion.reset();
+
     assertEquals(0, criterion.getLastImprovementIteration());
     assertFalse(criterion.shouldStop(context(0, 120.0, 120.0)));
     assertFalse(criterion.shouldStop(context(1, 120.0, 120.0)));

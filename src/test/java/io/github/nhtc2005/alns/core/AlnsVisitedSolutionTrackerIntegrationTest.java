@@ -48,23 +48,6 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
   }
 
   @Test
-  void constructor_ShouldThrowException_WhenVisitedSolutionTrackerIsNull() {
-    NullPointerException exception =
-        assertThrows(
-            NullPointerException.class,
-            () ->
-                new Alns<TestSolution>(
-                    new Random(1),
-                    List.of(mockDestroyOperator),
-                    List.of(mockRepairOperator),
-                    mockOperatorSelector,
-                    false,
-                    null));
-
-    assertEquals("visitedSolutionTracker must not be null.", exception.getMessage());
-  }
-
-  @Test
   void solve_ShouldResetTrackerAndRecordInitialCopy_WhenStoppingBeforeFirstIteration() {
     TestSolution initialSolution = new TestSolution(100.0);
     Alns<TestSolution> alns =
@@ -75,6 +58,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .operatorSelector(mockOperatorSelector)
             .visitedSolutionTracker(mockVisitedSolutionTracker)
             .build();
+
     when(mockStoppingCriterion.shouldStop(any())).thenReturn(true);
 
     AlnsResult<TestSolution> result =
@@ -88,6 +72,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     verifyNoMoreInteractions(mockVisitedSolutionTracker);
     verifyNoInteractions(mockDestroyOperator, mockRepairOperator);
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
+
     assertNotSame(initialSolution, solutionCaptor.getValue());
     assertEquals(100.0, solutionCaptor.getValue().getObjectiveValue());
     assertEquals(0, result.totalIterations());
@@ -105,6 +90,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .operatorSelector(mockOperatorSelector)
             .visitedSolutionTracker(tracker)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockDestroyOperator.apply(any(), any()))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -124,6 +110,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
         ArgumentCaptor.captor();
     verify(mockOperatorSelector, times(5)).update(feedbackCaptor.capture());
     verify(mockAcceptanceCriterion, times(5)).shouldAccept(any());
+
     assertEquals(
         List.of(
             SolutionStatus.BEST,
@@ -151,6 +138,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .visitedSolutionTracker(mockVisitedSolutionTracker)
             .collectStatistics(true)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(true);
     when(mockVisitedSolutionTracker.recordIfNew(any())).thenReturn(isNew);
@@ -173,6 +161,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
                   new OperatorSelection(0, 0), candidateSolution, SolutionStatus.ACCEPTED, false));
     }
     verifyNoMoreInteractions(mockVisitedSolutionTracker);
+
     assertEquals(3, result.totalIterations());
     assertEquals(3, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
   }
@@ -194,6 +183,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .visitedSolutionTracker(tracker)
             .collectStatistics(true)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockRepairOperator.apply(any(), any())).thenReturn(firstSolution, candidateSolution);
     when(mockAcceptanceCriterion.shouldAccept(any())).thenReturn(!isFeasible, true);
@@ -204,6 +194,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
         ArgumentCaptor.captor();
     verify(mockOperatorSelector, times(2)).update(feedbackCaptor.capture());
+
     assertEquals(SolutionStatus.REJECTED, feedbackCaptor.getAllValues().get(0).status());
     assertEquals(
         new OperatorSelectionFeedback<>(
@@ -226,6 +217,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .visitedSolutionTracker(tracker)
             .collectStatistics(true)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockRepairOperator.apply(any(), any()))
         .thenReturn(
@@ -243,6 +235,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
         ArgumentCaptor.captor();
     verify(mockOperatorSelector, times(5)).update(feedbackCaptor.capture());
     verify(mockAcceptanceCriterion, times(5)).shouldAccept(any());
+
     assertEquals(
         List.of(
             SolutionStatus.ACCEPTED,
@@ -276,6 +269,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .operatorSelector(mockOperatorSelector)
             .visitedSolutionTracker(mockVisitedSolutionTracker)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
 
     AlnsResult<TestSolution> result =
@@ -287,6 +281,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
         .update(
             new OperatorSelectionFeedback<>(
                 new OperatorSelection(0, 0), candidateSolution, SolutionStatus.BEST, true));
+
     assertEquals(90.0, result.bestSolution().getObjectiveValue());
   }
 
@@ -315,31 +310,10 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
 
     assertEquals(1, secondResult.totalIterations());
     assertEquals(2, tracker.getVisitedSolutionCount());
+
     assertTrue(tracker.recordIfNew(new TestSolution(100.0)));
     assertFalse(tracker.recordIfNew(new TestSolution(200.0)));
     assertEquals(3, tracker.getVisitedSolutionCount());
-  }
-
-  @Test
-  void solve_ShouldUseProvidedTracker_WhenUsingConstructor() {
-    HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
-        new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
-    Alns<TestSolution> alns =
-        new Alns<TestSolution>(
-            new Random(1),
-            List.of((solution, randomGenerator) -> solution),
-            List.of(
-                (solution, randomGenerator) -> new TestSolution(solution.getObjectiveValue() - 1)),
-            context -> new OperatorSelection(0, 0),
-            false,
-            tracker);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-
-    assertEquals(3, tracker.getVisitedSolutionCount());
-    assertEquals(2, result.totalIterations());
-    assertEquals(98.0, result.bestSolution().getObjectiveValue());
   }
 
   @ParameterizedTest
@@ -350,6 +324,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
     Random randomGeneratorWithTracker = new Random(123);
     HashSetVisitedSolutionTracker<Double, TestSolution> tracker =
         new HashSetVisitedSolutionTracker<>(TestSolution::getObjectiveValue);
+
     Alns.Builder<TestSolution> builder =
         Alns.<TestSolution>builder()
             .addDestroyOperator((solution, randomGenerator) -> solution)
@@ -363,6 +338,7 @@ class AlnsVisitedSolutionTrackerIntegrationTest {
             .randomGenerator(randomGeneratorWithTracker)
             .visitedSolutionTracker(trackingEnabled ? tracker : VisitedSolutionTracker.disabled())
             .build();
+
     SimulatedAnnealing<TestSolution> criterionWithoutTracker =
         new SimulatedAnnealing<>(100.0, 1.0, 0.9);
     SimulatedAnnealing<TestSolution> criterionWithTracker =

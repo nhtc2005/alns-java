@@ -15,17 +15,20 @@ import org.slf4j.LoggerFactory;
  *
  * <p>\[ w_i' = \theta w_i + (1 - \theta) s. \]
  *
- * <p>Here \(\theta\) is {@code decay}, and \(s\) is the outcome score, or zero when reward is
- * ineligible. Instances hold mutable weights and must not be shared by concurrent runs.
+ * <p>Here \(\theta\) is {@code decay}, and \(s\) is the outcome score, or the rejected-outcome
+ * score {@code scores[3]} when reward is ineligible. Instances hold mutable weights and must not be
+ * shared by concurrent runs.
  *
  * @param <S> the solution type
  */
-public class RouletteWheelOperatorSelector<S extends Solution<S>> implements OperatorSelector<S> {
+public final class RouletteWheelOperatorSelector<S extends Solution<S>>
+    implements OperatorSelector<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RouletteWheelOperatorSelector.class);
 
   private final double[] scores;
   private final double decay;
+
   private final double[] destroyOperatorWeights;
   private final double[] repairOperatorWeights;
 
@@ -34,8 +37,8 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
    *
    * @param destroyOperatorCount the positive number of destroy operators
    * @param repairOperatorCount the positive number of repair operators
-   * @param scores four finite non-negative scores in BEST, BETTER, ACCEPTED, REJECTED order; copied
-   *     on construction
+   * @param scores four finite non-negative scores in {@code BEST}, {@code BETTER}, {@code
+   *     ACCEPTED}, {@code REJECTED} order; copied on construction
    * @param decay the finite weight retention factor in {@code [0, 1]}
    * @throws IllegalArgumentException if any numeric parameter or score count is invalid
    * @throws NullPointerException if {@code scores} is null
@@ -47,9 +50,11 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
     }
 
     Objects.requireNonNull(scores, "scores must not be null.");
+
     if (scores.length != 4) {
       throw new IllegalArgumentException("scores must contain exactly four values.");
     }
+
     this.scores = scores.clone();
     for (double score : this.scores) {
       if (!Double.isFinite(score) || score < 0.0) {
@@ -62,8 +67,10 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
     }
 
     this.decay = decay;
+
     this.destroyOperatorWeights = new double[destroyOperatorCount];
     this.repairOperatorWeights = new double[repairOperatorCount];
+
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
@@ -111,7 +118,7 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
               case ACCEPTED -> scores[2];
               case REJECTED -> scores[3];
             }
-            : 0.0;
+            : scores[3];
 
     double oldDestroyWeight = destroyOperatorWeights[destroyOperatorIndex];
     double oldRepairWeight = repairOperatorWeights[repairOperatorIndex];
@@ -119,6 +126,7 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
         decay * destroyOperatorWeights[destroyOperatorIndex] + (1 - decay) * score;
     repairOperatorWeights[repairOperatorIndex] =
         decay * repairOperatorWeights[repairOperatorIndex] + (1 - decay) * score;
+
     if (LOGGER.isTraceEnabled()) {
       LOGGER.trace(
           "Destroy operator {}: score={}, weight {} -> {}",
@@ -161,9 +169,11 @@ public class RouletteWheelOperatorSelector<S extends Solution<S>> implements Ope
   }
 
   /**
-   * Returns a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order.
+   * Returns a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   * REJECTED} order.
    *
-   * @return a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order
+   * @return a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   *     REJECTED} order
    */
   public double[] getScores() {
     return scores.clone();

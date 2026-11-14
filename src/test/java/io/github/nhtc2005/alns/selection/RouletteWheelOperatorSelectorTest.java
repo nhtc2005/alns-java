@@ -84,29 +84,14 @@ class RouletteWheelOperatorSelectorTest {
   }
 
   @Test
-  void constructor_ShouldInitializeWeights_WhenResetIsOverridden() {
-    RouletteWheelOperatorSelector<TestSolution> selector =
-        assertDoesNotThrow(
-            () ->
-                new RouletteWheelOperatorSelector<TestSolution>(
-                    2, 2, new double[] {7, 3, 1, 0}, 0.5) {
-                  @Override
-                  public void reset() {
-                    throw new IllegalStateException("reset must not be called by the constructor.");
-                  }
-                });
-    when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
-
-    assertEquals(new OperatorSelection(1, 1), selector.select(context()));
-  }
-
-  @Test
   void getScores_ShouldPreserveConfiguredScores_WhenCallerModifiesInputOrReturnedArray() {
     double[] scores = {7, 3, 1, 0};
     RouletteWheelOperatorSelector<TestSolution> selector =
         new RouletteWheelOperatorSelector<>(2, 2, scores, 0.0);
+
     scores[0] = 0;
     assertArrayEquals(new double[] {7, 3, 1, 0}, selector.getScores());
+
     selector.update(feedback(0, 0, SolutionStatus.BEST));
     assertArrayEquals(new double[] {7, 1}, selector.getDestroyOperatorWeights());
     assertArrayEquals(new double[] {7, 1}, selector.getRepairOperatorWeights());
@@ -149,6 +134,7 @@ class RouletteWheelOperatorSelectorTest {
     when(mockRandomGenerator.nextInt(2)).thenReturn(1, 0);
 
     assertEquals(new OperatorSelection(1, 0), selector.select(context()));
+
     verify(mockRandomGenerator, never()).nextDouble();
   }
 
@@ -169,6 +155,7 @@ class RouletteWheelOperatorSelectorTest {
         new RouletteWheelOperatorSelector<>(3, 3, new double[] {7, 3, 1, 0}, 0.0);
     selector.update(feedback(1, 1, SolutionStatus.BEST));
     selector.update(feedback(2, 2, SolutionStatus.REJECTED));
+
     // Deliberately outside [0.0, 1.0) to exercise the defensive fallback.
     when(mockRandomGenerator.nextDouble()).thenReturn(1.0);
 
@@ -184,8 +171,10 @@ class RouletteWheelOperatorSelectorTest {
     double[] repairWeights = selector.getRepairOperatorWeights();
     assertArrayEquals(new double[] {1, 4}, destroyWeights);
     assertArrayEquals(new double[] {4, 1}, repairWeights);
+
     destroyWeights[1] = 0;
     repairWeights[0] = 0;
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.5);
 
     assertArrayEquals(new double[] {1, 4}, selector.getDestroyOperatorWeights());
@@ -222,17 +211,18 @@ class RouletteWheelOperatorSelectorTest {
   @EnumSource(
       value = SolutionStatus.class,
       names = {"BETTER", "ACCEPTED"})
-  void update_ShouldDecayOnlySelectedWeights_WhenFeedbackIsNotRewardEligible(
+  void update_ShouldApplyRejectedScoreToSelectedWeights_WhenFeedbackIsNotRewardEligible(
       SolutionStatus status) {
-    RouletteWheelOperatorSelector<TestSolution> selector = selector(0.5);
+    RouletteWheelOperatorSelector<TestSolution> selector =
+        new RouletteWheelOperatorSelector<>(2, 2, new double[] {7, 3, 1, 2}, 0.5);
     selector.update(feedback(1, 0, SolutionStatus.BEST));
 
     selector.update(
         new OperatorSelectionFeedback<>(
             new OperatorSelection(1, 0), new TestSolution(100.0), status, false));
 
-    assertArrayEquals(new double[] {1, 2}, selector.getDestroyOperatorWeights());
-    assertArrayEquals(new double[] {2, 1}, selector.getRepairOperatorWeights());
+    assertArrayEquals(new double[] {1, 3}, selector.getDestroyOperatorWeights());
+    assertArrayEquals(new double[] {3, 1}, selector.getRepairOperatorWeights());
   }
 
   @Test
@@ -266,6 +256,7 @@ class RouletteWheelOperatorSelectorTest {
         () ->
             selector.update(
                 feedback(destroyOperatorIndex, repairOperatorIndex, SolutionStatus.BEST)));
+
     when(mockRandomGenerator.nextDouble()).thenReturn(0.75);
     assertEquals(new OperatorSelection(1, 1), selector.select(context()));
   }

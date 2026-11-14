@@ -17,10 +17,10 @@ import org.slf4j.LoggerFactory;
  * <p>\[ w_i' = \theta w_i + (1 - \theta) \frac{\Sigma_i}{n_i}. \]
  *
  * <p>Here \(\theta\) is {@code decay}, and \(\Sigma_i\) is the sum of scores credited to operator
- * \(i\) in that segment, and \(n_i\) is its selection count. Ineligible feedback contributes zero
- * score but still counts as a selection and advances the segment. Operators with no selections
- * retain their weights. Segment scores and selection counts are cleared after updating. Instances
- * hold mutable state and must not be shared by concurrent runs.
+ * \(i\) in that segment, and \(n_i\) is its selection count. Ineligible feedback contributes the
+ * rejected-outcome score {@code scores[3]}, counts as a selection, and advances the segment.
+ * Operators with no selections retain their weights. Segment scores and selection counts are
+ * cleared after updating. Instances hold mutable state and must not be shared by concurrent runs.
  *
  * @param <S> the solution type
  */
@@ -33,11 +33,12 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   private final double[] scores;
   private final double decay;
   private final long segmentLength;
+
   private final double[] destroyOperatorWeights;
   private final double[] repairOperatorWeights;
+
   private final double[] destroyOperatorSegmentScores;
   private final double[] repairOperatorSegmentScores;
-
   private final long[] destroyOperatorSelectionCounts;
   private final long[] repairOperatorSelectionCounts;
 
@@ -48,8 +49,8 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
    *
    * @param destroyOperatorCount the positive number of destroy operators
    * @param repairOperatorCount the positive number of repair operators
-   * @param scores four finite non-negative scores in BEST, BETTER, ACCEPTED, REJECTED order; copied
-   *     on construction
+   * @param scores four finite non-negative scores in {@code BEST}, {@code BETTER}, {@code
+   *     ACCEPTED}, {@code REJECTED} order; copied on construction
    * @param decay the finite weight retention factor in {@code [0, 1]}
    * @param segmentLength the positive number of feedback updates per segment
    * @throws IllegalArgumentException if any numeric parameter or score count is invalid
@@ -66,9 +67,11 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     }
 
     Objects.requireNonNull(scores, "scores must not be null.");
+
     if (scores.length != 4) {
       throw new IllegalArgumentException("scores must contain exactly four values.");
     }
+
     this.scores = scores.clone();
     for (double score : this.scores) {
       if (!Double.isFinite(score) || score < 0.0) {
@@ -79,18 +82,21 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
     if (!Double.isFinite(decay) || decay < 0.0 || decay > 1.0) {
       throw new IllegalArgumentException("decay must be finite and in the range [0.0, 1.0].");
     }
+
     if (segmentLength <= 0) {
       throw new IllegalArgumentException("segmentLength must be positive.");
     }
 
     this.decay = decay;
     this.segmentLength = segmentLength;
+
     this.destroyOperatorWeights = new double[destroyOperatorCount];
     this.repairOperatorWeights = new double[repairOperatorCount];
     this.destroyOperatorSegmentScores = new double[destroyOperatorCount];
     this.repairOperatorSegmentScores = new double[repairOperatorCount];
     this.destroyOperatorSelectionCounts = new long[destroyOperatorCount];
     this.repairOperatorSelectionCounts = new long[repairOperatorCount];
+
     Arrays.fill(this.destroyOperatorWeights, 1.0);
     Arrays.fill(this.repairOperatorWeights, 1.0);
   }
@@ -139,7 +145,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
               case ACCEPTED -> scores[2];
               case REJECTED -> scores[3];
             }
-            : 0.0;
+            : scores[3];
 
     double destroySegmentScore = destroyOperatorSegmentScores[destroyOperatorIndex] + score;
     double repairSegmentScore = repairOperatorSegmentScores[repairOperatorIndex] + score;
@@ -164,6 +170,7 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
           repairOperatorWeights,
           repairOperatorSegmentScores,
           repairOperatorSelectionCounts);
+
       Arrays.fill(destroyOperatorSegmentScores, 0.0);
       Arrays.fill(repairOperatorSegmentScores, 0.0);
       Arrays.fill(destroyOperatorSelectionCounts, 0);
@@ -173,12 +180,13 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   }
 
   /**
-   * Restores all weights to 1 and clears segment scores, selection counts and the segment counter.
+   * Restores all weights to 1 and clears segment scores, selection counts, and the segment counter.
    */
   @Override
   public void reset() {
     Arrays.fill(destroyOperatorWeights, 1.0);
     Arrays.fill(repairOperatorWeights, 1.0);
+
     Arrays.fill(destroyOperatorSegmentScores, 0.0);
     Arrays.fill(repairOperatorSegmentScores, 0.0);
     Arrays.fill(destroyOperatorSelectionCounts, 0);
@@ -205,9 +213,11 @@ public final class SegmentedRouletteWheelOperatorSelector<S extends Solution<S>>
   }
 
   /**
-   * Returns a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order.
+   * Returns a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   * REJECTED} order.
    *
-   * @return a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order
+   * @return a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   *     REJECTED} order
    */
   public double[] getScores() {
     return scores.clone();

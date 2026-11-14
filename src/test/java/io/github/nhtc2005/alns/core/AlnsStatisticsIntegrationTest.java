@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,52 +35,20 @@ class AlnsStatisticsIntegrationTest {
   @EnumSource(DisabledConfiguration.class)
   void solve_ShouldLeaveStatisticsDisabled_WhenCollectionIsNotEnabled(
       DisabledConfiguration configuration) {
-    Alns<TestSolution> alns;
-    if (configuration == DisabledConfiguration.CONSTRUCTOR_DEFAULT) {
-      alns =
-          new Alns<TestSolution>(
-              new Random(1),
-              List.of((solution, randomGenerator) -> solution),
-              List.of((solution, randomGenerator) -> solution),
-              context -> new OperatorSelection(0, 0));
-    } else {
-      Alns.Builder<TestSolution> builder =
-          Alns.<TestSolution>builder()
-              .randomGenerator(new Random(1))
-              .addDestroyOperator((solution, randomGenerator) -> solution)
-              .addRepairOperator((solution, randomGenerator) -> solution);
-      if (configuration == DisabledConfiguration.BUILDER_EXPLICIT_FALSE) {
-        builder.collectStatistics(true).collectStatistics(false);
-      }
-      alns = builder.build();
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(new Random(1))
+            .addDestroyOperator((solution, randomGenerator) -> solution)
+            .addRepairOperator((solution, randomGenerator) -> solution);
+    if (configuration == DisabledConfiguration.BUILDER_EXPLICIT_FALSE) {
+      builder.collectStatistics(true).collectStatistics(false);
     }
+    Alns<TestSolution> alns = builder.build();
 
     AlnsResult<TestSolution> result =
         alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
 
     assertDisabledStatistics(result);
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void solve_ShouldRespectCollectionFlag_WhenUsingConstructor(boolean collectStatistics) {
-    Alns<TestSolution> alns =
-        new Alns<TestSolution>(
-            new Random(1),
-            List.of((solution, randomGenerator) -> solution),
-            List.of((solution, randomGenerator) -> solution),
-            context -> new OperatorSelection(0, 0),
-            collectStatistics);
-
-    AlnsResult<TestSolution> result =
-        alns.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
-
-    assertEquals(collectStatistics, result.statistics().isEnabled());
-    assertEquals(
-        collectStatistics ? List.of(100.0, 100.0, 100.0) : List.of(),
-        result.statistics().getCurrentObjectiveValues());
-    assertEquals(
-        collectStatistics ? 2 : 0, result.statistics().getStatusCount(SolutionStatus.ACCEPTED));
   }
 
   @Test
@@ -102,7 +69,7 @@ class AlnsStatisticsIntegrationTest {
     assertEquals(0, result.totalIterations());
     assertEquals(List.of(100.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0), statistics.getBestObjectiveValues());
-    assertTrue(statistics.getIterationRuntimesNanos().isEmpty());
+    assertEquals(List.of(0L), statistics.getIterationRuntimesNanos());
     for (SolutionStatus status : SolutionStatus.values()) {
       assertEquals(0, statistics.getStatusCount(status));
       assertEquals(0, statistics.getDestroyOperatorCount(0, status));
@@ -115,14 +82,15 @@ class AlnsStatisticsIntegrationTest {
     Alns<TestSolution> alns =
         Alns.<TestSolution>builder()
             .randomGenerator(new Random(1))
-            .addDestroyOperator(mockDestroyOperator)
+            .addDestroyOperator("random-removal", mockDestroyOperator)
             .addDestroyOperator(mockDestroyOperator)
             .addRepairOperator(mockRepairOperator)
-            .addRepairOperator(mockRepairOperator)
+            .addRepairOperator("greedy-insertion", mockRepairOperator)
             .addRepairOperator(mockRepairOperator)
             .operatorSelector(mockOperatorSelector)
             .collectStatistics(true)
             .build();
+
     when(mockOperatorSelector.select(any()))
         .thenReturn(
             new OperatorSelection(0, 2),
@@ -147,13 +115,19 @@ class AlnsStatisticsIntegrationTest {
 
     assertEquals(5, result.totalIterations());
     assertEquals(90.0, result.bestSolution().getObjectiveValue());
+
     assertEquals(
         List.of(100.0, 90.0, 120.0, 110.0, 110.0, 110.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 90.0, 90.0, 90.0, 90.0, 90.0), statistics.getBestObjectiveValues());
+
     assertEquals(1, statistics.getStatusCount(SolutionStatus.BEST));
     assertEquals(1, statistics.getStatusCount(SolutionStatus.BETTER));
     assertEquals(1, statistics.getStatusCount(SolutionStatus.ACCEPTED));
     assertEquals(2, statistics.getStatusCount(SolutionStatus.REJECTED));
+
+    assertEquals(List.of("random-removal", "destroy-1"), statistics.getDestroyOperatorNames());
+    assertEquals(
+        List.of("repair-0", "greedy-insertion", "repair-2"), statistics.getRepairOperatorNames());
 
     long[][] expectedDestroyOperatorCounts = {{1, 1, 0, 0}, {0, 0, 1, 2}};
     long[][] expectedRepairOperatorCounts = {{0, 0, 1, 0}, {0, 1, 0, 1}, {1, 0, 0, 1}};
@@ -176,11 +150,13 @@ class AlnsStatisticsIntegrationTest {
       }
     }
 
-    assertEquals(5, statistics.getIterationRuntimesNanos().size());
+    assertEquals(6, statistics.getIterationRuntimesNanos().size());
+    assertEquals(0L, statistics.getIterationRuntimesNanos().get(0));
     assertTrue(statistics.getIterationRuntimesNanos().stream().allMatch(runtime -> runtime >= 0));
     long totalIterationRuntimeNanos =
         statistics.getIterationRuntimesNanos().stream().mapToLong(Long::longValue).sum();
     assertTrue(totalIterationRuntimeNanos <= result.elapsedNanos());
+
     verify(mockOperatorSelector, times(5)).update(any());
     verify(mockAcceptanceCriterion, times(5)).shouldAccept(any());
   }
@@ -207,15 +183,17 @@ class AlnsStatisticsIntegrationTest {
     AlnsStatistics secondStatistics = secondResult.statistics();
 
     assertNotSame(firstStatistics, secondStatistics);
+
     assertEquals(List.of(100.0, 99.0, 98.0), firstStatistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 99.0, 98.0), firstStatistics.getBestObjectiveValues());
     assertEquals(firstCurrentObjectiveValues, firstStatistics.getCurrentObjectiveValues());
     assertEquals(firstIterationRuntimesNanos, firstStatistics.getIterationRuntimesNanos());
     assertEquals(2, firstStatistics.getStatusCount(SolutionStatus.BEST));
+
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getCurrentObjectiveValues());
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getBestObjectiveValues());
     assertEquals(3, secondStatistics.getStatusCount(SolutionStatus.BEST));
-    assertEquals(3, secondStatistics.getIterationRuntimesNanos().size());
+    assertEquals(4, secondStatistics.getIterationRuntimesNanos().size());
   }
 
   @Test
@@ -282,20 +260,19 @@ class AlnsStatisticsIntegrationTest {
 
   private void assertDisabledStatistics(AlnsResult<TestSolution> result) {
     AlnsStatistics statistics = result.statistics();
+
     assertEquals(2, result.totalIterations());
     assertFalse(statistics.isEnabled());
-    assertTrue(statistics.getCurrentObjectiveValues().isEmpty());
-    assertTrue(statistics.getBestObjectiveValues().isEmpty());
-    assertTrue(statistics.getIterationRuntimesNanos().isEmpty());
-    for (SolutionStatus status : SolutionStatus.values()) {
-      assertEquals(0, statistics.getStatusCount(status));
-    }
+
+    assertThrows(IllegalStateException.class, statistics::getCurrentObjectiveValues);
+    assertThrows(IllegalStateException.class, statistics::getBestObjectiveValues);
+    assertThrows(IllegalStateException.class, statistics::getIterationRuntimesNanos);
+    assertThrows(IllegalStateException.class, () -> statistics.getStatusCount(SolutionStatus.BEST));
   }
 
   private enum DisabledConfiguration {
     BUILDER_DEFAULT,
-    BUILDER_EXPLICIT_FALSE,
-    CONSTRUCTOR_DEFAULT
+    BUILDER_EXPLICIT_FALSE
   }
 
   private record RankedSolution(int rank, double objectiveValue)

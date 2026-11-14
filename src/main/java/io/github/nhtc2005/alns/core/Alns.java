@@ -16,8 +16,10 @@ import io.github.nhtc2005.alns.selection.RandomOperatorSelector;
 import io.github.nhtc2005.alns.stopping.StoppingContext;
 import io.github.nhtc2005.alns.stopping.StoppingCriterion;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,9 +27,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Runs Adaptive Large Neighborhood Search with configurable operators and search policies.
  *
- * <p>The objective is minimized. Use {@link #builder()} or a constructor to configure the solver,
- * then supply acceptance and stopping criteria to {@link #solve}. Instances share their configured
- * components and RNG across calls and must not be used for concurrent searches.
+ * <p>The objective is minimized. Use {@link #builder()} to configure the solver, then supply
+ * acceptance and stopping criteria to {@link #solve}. Instances share their configured components
+ * and random generator across calls and must not be used for concurrent searches.
  *
  * @param <S> the solution type
  */
@@ -36,101 +38,24 @@ public final class Alns<S extends Solution<S>> {
   private static final Logger LOGGER = LoggerFactory.getLogger(Alns.class);
 
   private final RandomGenerator randomGenerator;
+
   private final List<DestroyOperator<S>> destroyOperators;
   private final List<RepairOperator<S>> repairOperators;
+  private final List<String> destroyOperatorNames;
+  private final List<String> repairOperatorNames;
+
   private final OperatorSelector<S> operatorSelector;
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
   private final LocalSearch<S> localSearch;
   private final IterationCallback<S> iterationCallback;
 
-  /**
-   * Creates a solver with statistics and visit tracking disabled.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector) {
-    this(randomGenerator, destroyOperators, repairOperators, operatorSelector, false);
-  }
-
-  /**
-   * Creates a solver with optional statistics and visit tracking disabled.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @param collectStatistics whether to retain histories and outcome counts
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector,
-      boolean collectStatistics) {
-    this(
-        randomGenerator,
-        destroyOperators,
-        repairOperators,
-        operatorSelector,
-        collectStatistics,
-        VisitedSolutionTracker.disabled());
-  }
-
-  /**
-   * Creates a solver with the supplied search components.
-   *
-   * <p>Operator lists are copied; operator and component instances are shared.
-   *
-   * @param randomGenerator the non-null random generator used throughout the search
-   * @param destroyOperators the non-empty list of non-null destroy operators
-   * @param repairOperators the non-empty list of non-null repair operators
-   * @param operatorSelector the non-null selector compatible with the operator counts
-   * @param collectStatistics whether to retain histories and outcome counts
-   * @param visitedSolutionTracker the non-null tracker used for reward eligibility
-   * @throws NullPointerException if a required argument or operator is null
-   * @throws IllegalArgumentException if an operator list is empty or the selector rejects its
-   *     counts
-   */
-  public Alns(
-      RandomGenerator randomGenerator,
-      List<DestroyOperator<S>> destroyOperators,
-      List<RepairOperator<S>> repairOperators,
-      OperatorSelector<S> operatorSelector,
-      boolean collectStatistics,
-      VisitedSolutionTracker<S> visitedSolutionTracker) {
-    this(
-        randomGenerator,
-        destroyOperators,
-        repairOperators,
-        operatorSelector,
-        collectStatistics,
-        visitedSolutionTracker,
-        null,
-        null);
-  }
-
   private Alns(
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
       List<RepairOperator<S>> repairOperators,
+      List<String> destroyOperatorNames,
+      List<String> repairOperatorNames,
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker,
@@ -138,8 +63,10 @@ public final class Alns<S extends Solution<S>> {
       IterationCallback<S> iterationCallback) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
-    this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
-    this.repairOperators = copyNonEmpty(repairOperators, "repairOperators");
+    this.destroyOperators = List.copyOf(destroyOperators);
+    this.repairOperators = List.copyOf(repairOperators);
+    this.destroyOperatorNames = copyOperatorNames(destroyOperatorNames, "destroy");
+    this.repairOperatorNames = copyOperatorNames(repairOperatorNames, "repair");
     this.operatorSelector =
         Objects.requireNonNull(operatorSelector, "operatorSelector must not be null.");
     this.collectStatistics = collectStatistics;
@@ -147,6 +74,7 @@ public final class Alns<S extends Solution<S>> {
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
     this.localSearch = localSearch;
     this.iterationCallback = iterationCallback;
+
     this.operatorSelector.validateOperatorCounts(
         this.destroyOperators.size(), this.repairOperators.size());
   }
@@ -164,23 +92,26 @@ public final class Alns<S extends Solution<S>> {
   /**
    * Searches from a feasible initial solution until the stopping criterion requests termination.
    *
-   * <p>Resets the selector, criteria, and tracker before each run, but does not reset the RNG or
-   * operators. The initial solution is copied, and statistics are created separately for each run.
-   * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
-   * bests are accepted regardless of the acceptance decision.
+   * <p>Resets the selector, criteria, and tracker before each run, but does not reset the random
+   * generator or operators. The initial solution is copied, and statistics are created separately
+   * for each run. Acceptance is evaluated every iteration; infeasible candidates are rejected,
+   * while feasible new bests are accepted regardless of the acceptance decision. Iterations are
+   * numbered from one; iteration zero denotes the initial solution.
    *
    * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
-   * Its result is validated again and used by acceptance, tracking, feedback, and statistics. The
-   * iteration runtime includes local search. Local search is not reset between runs.
+   * Its result is checked again for feasibility and used by acceptance, tracking, feedback, and
+   * statistics. The iteration runtime includes local search. Local search is not reset between
+   * runs.
    *
-   * <p>The tracker records the initial solution and accepted candidates. New bests remain reward
-   * eligible; other accepted candidates require a new key and an objective different from the
-   * current solution. Tracking does not prevent revisits. Exceptions from user components
-   * propagate.
+   * <p>Reward eligibility uses strict comparisons. New bests are always eligible; other accepted
+   * candidates are eligible only when their objective differs from the current solution and their
+   * key is new to the tracker. Ineligible feedback receives the rejected-outcome score. The tracker
+   * records the initial solution and accepted candidates; revisited candidates can still become
+   * current. Exceptions from user components propagate.
    *
-   * <p>If configured, the iteration callback runs synchronously after feedback, statistics, and
-   * incrementing the iteration count. It runs even when statistics are disabled and is not reset
-   * between runs. Callback time counts toward total runtime, but not iteration statistics.
+   * <p>If configured, the iteration callback runs synchronously after feedback and statistics. It
+   * runs even when statistics are disabled and is not reset between runs. Callback time counts
+   * toward total runtime, but not iteration statistics.
    *
    * @param initialSolution the non-null feasible initial solution with a finite objective
    * @param acceptanceCriterion the non-null acceptance policy
@@ -188,8 +119,8 @@ public final class Alns<S extends Solution<S>> {
    * @return the best solution, completed iteration count, runtime, and statistics
    * @throws NullPointerException if an argument, solution copy, operator result, or selection is
    *     null
-   * @throws IllegalArgumentException if the initial solution is infeasible or an initial/candidate
-   *     objective is not finite
+   * @throws IllegalArgumentException if the initial solution is infeasible or the initial or a
+   *     feasible candidate objective is not finite
    * @throws IllegalStateException if the selector returns an out-of-range operator index
    */
   public AlnsResult<S> solve(
@@ -212,12 +143,14 @@ public final class Alns<S extends Solution<S>> {
 
     long startedAt = System.nanoTime();
     long iteration = 0;
+
     S currentSolution = copyOf(initialSolution, "initialSolution.copy() must not return null.");
     S bestSolution = copyOf(currentSolution, "Solution.copy() must not return null.");
     visitedSolutionTracker.recordIfNew(currentSolution);
+
     AlnsStatistics statistics =
         collectStatistics
-            ? new AlnsStatistics(destroyOperators.size(), repairOperators.size())
+            ? new AlnsStatistics(destroyOperatorNames, repairOperatorNames)
             : AlnsStatistics.disabled();
     if (collectStatistics) {
       statistics.collectInitial(
@@ -228,8 +161,8 @@ public final class Alns<S extends Solution<S>> {
       LOGGER.info(
           "Starting ALNS: initialObjective={}, destroyOperators={}, repairOperators={}",
           currentSolution.getObjectiveValue(),
-          destroyOperators.size(),
-          repairOperators.size());
+          destroyOperatorNames,
+          repairOperatorNames);
     }
 
     while (!stoppingCriterion.shouldStop(
@@ -239,6 +172,7 @@ public final class Alns<S extends Solution<S>> {
             bestSolution,
             currentSolution,
             randomGenerator))) {
+      iteration++;
       long iterationStartedAt = System.nanoTime();
       long elapsedNanos = iterationStartedAt - startedAt;
       OperatorSelection operatorSelection =
@@ -263,18 +197,24 @@ public final class Alns<S extends Solution<S>> {
                   .get(operatorSelection.repairOperatorIndex())
                   .apply(destroyedSolution, randomGenerator),
               "RepairOperator.apply(...) must not return null.");
-      validateObjective(candidateSolution, "candidateSolution");
-      if (localSearch != null && candidateSolution.isFeasible()) {
+
+      boolean isFeasible = candidateSolution.isFeasible();
+      if (isFeasible) {
+        validateObjective(candidateSolution, "candidateSolution");
+      }
+      if (localSearch != null && isFeasible) {
         candidateSolution =
             Objects.requireNonNull(
                 localSearch.apply(candidateSolution, randomGenerator),
                 "LocalSearch.apply(...) must not return null.");
-        validateObjective(candidateSolution, "candidateSolution");
+        isFeasible = candidateSolution.isFeasible();
+        if (isFeasible) {
+          validateObjective(candidateSolution, "candidateSolution");
+        }
       }
 
       SolutionStatus status;
       boolean isRewardEligible = true;
-      boolean isFeasible = candidateSolution.isFeasible();
       boolean isAccepted =
           acceptanceCriterion.shouldAccept(
               new AcceptanceContext<>(
@@ -289,7 +229,7 @@ public final class Alns<S extends Solution<S>> {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug(
               "New best at iteration {}: objective {} -> {}",
-              iteration + 1,
+              iteration,
               bestSolution.getObjectiveValue(),
               candidateSolution.getObjectiveValue());
         }
@@ -312,6 +252,7 @@ public final class Alns<S extends Solution<S>> {
       operatorSelector.update(
           new OperatorSelectionFeedback<>(
               operatorSelection, candidateSolution, status, isRewardEligible));
+
       if (collectStatistics) {
         long iterationRuntimeNanos = System.nanoTime() - iterationStartedAt;
         statistics.collectIteration(
@@ -321,19 +262,20 @@ public final class Alns<S extends Solution<S>> {
             bestSolution.getObjectiveValue(),
             iterationRuntimeNanos);
       }
-      iteration++;
+
       if (LOGGER.isTraceEnabled()) {
         LOGGER.trace(
             "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",
             iteration,
-            operatorSelection.destroyOperatorIndex(),
-            operatorSelection.repairOperatorIndex(),
+            destroyOperatorNames.get(operatorSelection.destroyOperatorIndex()),
+            repairOperatorNames.get(operatorSelection.repairOperatorIndex()),
             status,
             candidateSolution.getObjectiveValue(),
             currentSolution.getObjectiveValue(),
             bestSolution.getObjectiveValue(),
             isRewardEligible);
       }
+
       if (iterationCallback != null) {
         iterationCallback.onIteration(
             new IterationContext<>(
@@ -365,12 +307,13 @@ public final class Alns<S extends Solution<S>> {
     }
   }
 
-  private static <T> List<T> copyNonEmpty(List<T> values, String name) {
-    Objects.requireNonNull(values, name + " must not be null.");
-    if (values.isEmpty()) {
-      throw new IllegalArgumentException(name + " must not be empty.");
+  private void validateOperatorSelection(OperatorSelection operatorSelection) {
+    if (operatorSelection.destroyOperatorIndex() < 0
+        || operatorSelection.destroyOperatorIndex() >= destroyOperators.size()
+        || operatorSelection.repairOperatorIndex() < 0
+        || operatorSelection.repairOperatorIndex() >= repairOperators.size()) {
+      throw new IllegalStateException("operatorSelector returned an out-of-range operator index.");
     }
-    return List.copyOf(values);
   }
 
   private static <S extends Solution<S>> S copyOf(S solution, String message) {
@@ -381,13 +324,29 @@ public final class Alns<S extends Solution<S>> {
     return candidateSolution.getObjectiveValue() < currentSolution.getObjectiveValue();
   }
 
-  private void validateOperatorSelection(OperatorSelection operatorSelection) {
-    if (operatorSelection.destroyOperatorIndex() < 0
-        || operatorSelection.destroyOperatorIndex() >= destroyOperators.size()
-        || operatorSelection.repairOperatorIndex() < 0
-        || operatorSelection.repairOperatorIndex() >= repairOperators.size()) {
-      throw new IllegalStateException("operatorSelector returned an out-of-range operator index.");
+  private static List<String> copyOperatorNames(List<String> names, String kind) {
+    Set<String> uniqueNames = new HashSet<>();
+    for (String name : names) {
+      if (name.isBlank()) {
+        throw new IllegalArgumentException(kind + " operator names must not be blank.");
+      }
+      if (!uniqueNames.add(name)) {
+        throw new IllegalArgumentException("Duplicate " + kind + " operator name: '" + name + "'.");
+      }
     }
+    return List.copyOf(names);
+  }
+
+  static List<String> defaultOperatorNames(String kind, int count) {
+    List<String> names = new ArrayList<>(count);
+    for (int index = 0; index < count; index++) {
+      names.add(defaultOperatorName(kind, index));
+    }
+    return List.copyOf(names);
+  }
+
+  private static String defaultOperatorName(String kind, int index) {
+    return kind + "-" + index;
   }
 
   /**
@@ -401,8 +360,12 @@ public final class Alns<S extends Solution<S>> {
   public static final class Builder<S extends Solution<S>> {
 
     private RandomGenerator randomGenerator;
+
     private final List<DestroyOperator<S>> destroyOperators = new ArrayList<>();
     private final List<RepairOperator<S>> repairOperators = new ArrayList<>();
+    private final List<String> destroyOperatorNames = new ArrayList<>();
+    private final List<String> repairOperatorNames = new ArrayList<>();
+
     private OperatorSelector<S> operatorSelector;
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
@@ -425,28 +388,64 @@ public final class Alns<S extends Solution<S>> {
     }
 
     /**
-     * Appends a destroy operator; insertion order defines its index.
+     * Appends a destroy operator named {@code destroy-<index>}; insertion order defines its index.
      *
      * @param destroyOperator the destroy operator to append
      * @return this builder
      * @throws NullPointerException if {@code destroyOperator} is null
      */
     public Builder<S> addDestroyOperator(DestroyOperator<S> destroyOperator) {
+      return addDestroyOperator(
+          defaultOperatorName("destroy", destroyOperators.size()), destroyOperator);
+    }
+
+    /**
+     * Appends a named destroy operator; insertion order defines its index.
+     *
+     * <p>Names are used in logs and statistics and must be non-blank and unique among destroy
+     * operators.
+     *
+     * @param name the operator name
+     * @param destroyOperator the destroy operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code name} or {@code destroyOperator} is null
+     */
+    public Builder<S> addDestroyOperator(String name, DestroyOperator<S> destroyOperator) {
+      Objects.requireNonNull(name, "destroyOperatorName must not be null.");
       destroyOperators.add(
           Objects.requireNonNull(destroyOperator, "destroyOperator must not be null."));
+      destroyOperatorNames.add(name);
       return this;
     }
 
     /**
-     * Appends a repair operator; insertion order defines its index.
+     * Appends a repair operator named {@code repair-<index>}; insertion order defines its index.
      *
      * @param repairOperator the repair operator to append
      * @return this builder
      * @throws NullPointerException if {@code repairOperator} is null
      */
     public Builder<S> addRepairOperator(RepairOperator<S> repairOperator) {
+      return addRepairOperator(
+          defaultOperatorName("repair", repairOperators.size()), repairOperator);
+    }
+
+    /**
+     * Appends a named repair operator; insertion order defines its index.
+     *
+     * <p>Names are used in logs and statistics and must be non-blank and unique among repair
+     * operators.
+     *
+     * @param name the operator name
+     * @param repairOperator the repair operator to append
+     * @return this builder
+     * @throws NullPointerException if {@code name} or {@code repairOperator} is null
+     */
+    public Builder<S> addRepairOperator(String name, RepairOperator<S> repairOperator) {
+      Objects.requireNonNull(name, "repairOperatorName must not be null.");
       repairOperators.add(
           Objects.requireNonNull(repairOperator, "repairOperator must not be null."));
+      repairOperatorNames.add(name);
       return this;
     }
 
@@ -466,8 +465,8 @@ public final class Alns<S extends Solution<S>> {
     /**
      * Enables or disables statistics collection.
      *
-     * @param collectStatistics whether to retain full histories and outcome counts; false by
-     *     default
+     * @param collectStatistics whether to retain full histories and outcome counts; {@code false}
+     *     by default
      * @return this builder
      */
     public Builder<S> collectStatistics(boolean collectStatistics) {
@@ -519,7 +518,8 @@ public final class Alns<S extends Solution<S>> {
      * @return a solver with copied operator lists and shared component instances
      * @throws NullPointerException if no random generator was configured
      * @throws IllegalStateException if either operator list is empty
-     * @throws IllegalArgumentException if the selector rejects the operator counts
+     * @throws IllegalArgumentException if an operator name is blank or duplicated within its group,
+     *     or the selector rejects the operator counts
      */
     public Alns<S> build() {
       RandomGenerator configuredRandomGenerator =
@@ -541,6 +541,8 @@ public final class Alns<S extends Solution<S>> {
           configuredRandomGenerator,
           destroyOperators,
           repairOperators,
+          destroyOperatorNames,
+          repairOperatorNames,
           configuredOperatorSelector,
           collectStatistics,
           visitedSolutionTracker,

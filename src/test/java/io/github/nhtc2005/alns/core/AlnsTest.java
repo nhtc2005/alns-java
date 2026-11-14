@@ -104,6 +104,74 @@ class AlnsTest {
   }
 
   @Test
+  void builder_ShouldThrowException_WhenOperatorNameIsNull() {
+    Alns.Builder<TestSolution> builder = Alns.builder();
+
+    NullPointerException destroyException =
+        assertThrows(
+            NullPointerException.class,
+            () -> builder.addDestroyOperator(null, mockDestroyOperator));
+
+    assertEquals("destroyOperatorName must not be null.", destroyException.getMessage());
+
+    NullPointerException repairException =
+        assertThrows(
+            NullPointerException.class, () -> builder.addRepairOperator(null, mockRepairOperator));
+
+    assertEquals("repairOperatorName must not be null.", repairException.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "' ', remove, destroy operator names must not be blank.",
+    "remove, remove, Duplicate destroy operator name: 'remove'.",
+    "destroy-1, , Duplicate destroy operator name: 'destroy-1'."
+  })
+  void builder_ShouldThrowException_WhenDestroyOperatorNamesAreInvalid(
+      String firstName, String secondName, String expectedMessage) {
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(mockRandomGenerator)
+            .addDestroyOperator(firstName, mockDestroyOperator)
+            .addRepairOperator(mockRepairOperator);
+    if (secondName == null) {
+      builder.addDestroyOperator(mockDestroyOperator);
+    } else {
+      builder.addDestroyOperator(secondName, mockDestroyOperator);
+    }
+
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, builder::build);
+
+    assertEquals(expectedMessage, exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "' ', insert, repair operator names must not be blank.",
+    "insert, insert, Duplicate repair operator name: 'insert'.",
+    "repair-1, , Duplicate repair operator name: 'repair-1'."
+  })
+  void builder_ShouldThrowException_WhenRepairOperatorNamesAreInvalid(
+      String firstName, String secondName, String expectedMessage) {
+    Alns.Builder<TestSolution> builder =
+        Alns.<TestSolution>builder()
+            .randomGenerator(mockRandomGenerator)
+            .addDestroyOperator(mockDestroyOperator)
+            .addRepairOperator(firstName, mockRepairOperator);
+    if (secondName == null) {
+      builder.addRepairOperator(mockRepairOperator);
+    } else {
+      builder.addRepairOperator(secondName, mockRepairOperator);
+    }
+
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, builder::build);
+
+    assertEquals(expectedMessage, exception.getMessage());
+  }
+
+  @Test
   void builder_ShouldThrowException_WhenLocalSearchIsNull() {
     NullPointerException exception =
         assertThrows(
@@ -143,64 +211,19 @@ class AlnsTest {
 
     assertEquals(50.0, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockRandomGenerator, times(2)).nextInt(1);
     verify(mockDestroyOperator).apply(any(), same(mockRandomGenerator));
     verify(mockRepairOperator).apply(same(partialSolution), same(mockRandomGenerator));
     verifyNoInteractions(mockOperatorSelector);
   }
 
-  @Test
-  void constructor_ShouldThrowException_WhenOperatorListIsEmpty() {
-    List<DestroyOperator<TestSolution>> emptyDestroyOperators = List.of();
-    List<RepairOperator<TestSolution>> validRepairOperators = List.of(mockRepairOperator);
-
-    IllegalArgumentException destroyException =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                new Alns<>(
-                    mockRandomGenerator,
-                    emptyDestroyOperators,
-                    validRepairOperators,
-                    mockOperatorSelector));
-
-    assertEquals("destroyOperators must not be empty.", destroyException.getMessage());
-
-    List<DestroyOperator<TestSolution>> validDestroyOperators = List.of(mockDestroyOperator);
-    List<RepairOperator<TestSolution>> emptyRepairOperators = List.of();
-
-    IllegalArgumentException repairException =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                new Alns<>(
-                    mockRandomGenerator,
-                    validDestroyOperators,
-                    emptyRepairOperators,
-                    mockOperatorSelector));
-
-    assertEquals("repairOperators must not be empty.", repairException.getMessage());
-  }
-
   @ParameterizedTest
   @CsvSource({"1, 2", "3, 2", "2, 1", "2, 3"})
-  void constructor_ShouldThrowException_WhenSelectorOperatorCountsMismatch(
-      int destroys, int repairs) {
+  void builder_ShouldThrowException_WhenSelectorOperatorCountsMismatch(int destroys, int repairs) {
     String expectedMessage =
         "Selector operator counts must match the configured destroy and repair operator counts.";
     for (OperatorSelector<TestSolution> selector : operatorCountSelectors(destroys, repairs)) {
-      IllegalArgumentException constructorException =
-          assertThrows(
-              IllegalArgumentException.class,
-              () ->
-                  new Alns<>(
-                      new Random(1),
-                      List.of(mockDestroyOperator, mockDestroyOperator),
-                      List.of(mockRepairOperator, mockRepairOperator),
-                      selector));
-
-      assertEquals(expectedMessage, constructorException.getMessage());
-
       IllegalArgumentException builderException =
           assertThrows(
               IllegalArgumentException.class,
@@ -211,21 +234,20 @@ class AlnsTest {
   }
 
   @Test
-  void constructor_ShouldNotThrowException_WhenSelectorOperatorCountsMatch() {
+  void builder_ShouldNotThrowException_WhenSelectorOperatorCountsMatch() {
     for (OperatorSelector<TestSolution> selector : operatorCountSelectors(2, 2)) {
-      assertDoesNotThrow(
-          () ->
-              new Alns<>(
-                  new Random(1),
-                  List.of(mockDestroyOperator, mockDestroyOperator),
-                  List.of(mockRepairOperator, mockRepairOperator),
-                  selector));
       assertDoesNotThrow(() -> operatorCountsBuilder().operatorSelector(selector).build());
     }
+
+    assertDoesNotThrow(
+        () ->
+            operatorCountsBuilder()
+                .operatorSelector(context -> new OperatorSelection(0, 0))
+                .build());
   }
 
   @Test
-  void constructor_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
+  void builder_ShouldPropagateValidationFailure_WhenCustomSelectorRejectsCounts() {
     OperatorSelector<TestSolution> selector =
         new OperatorSelector<>() {
           @Override
@@ -271,6 +293,7 @@ class AlnsTest {
                     new TestSolution(objective), mockAcceptanceCriterion, mockStoppingCriterion));
 
     assertEquals("initialSolution objective must be finite.", exception.getMessage());
+
     verifyNoInteractions(
         mockOperatorSelector,
         mockAcceptanceCriterion,
@@ -296,17 +319,10 @@ class AlnsTest {
   }
 
   @ParameterizedTest
-  @CsvSource({
-    "NaN, true",
-    "Infinity, true",
-    "-Infinity, true",
-    "NaN, false",
-    "Infinity, false",
-    "-Infinity, false"
-  })
-  void solve_ShouldThrowExceptionBeforeAcceptance_WhenCandidateObjectiveIsNonFinite(
-      double objective, boolean feasible) {
-    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective, feasible));
+  @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+  void solve_ShouldThrowExceptionBeforeAcceptance_WhenFeasibleCandidateObjectiveIsNonFinite(
+      double objective) {
+    setupBasicMocks(new TestSolution(100.0, false), new TestSolution(objective));
 
     IllegalArgumentException exception =
         assertThrows(
@@ -316,6 +332,7 @@ class AlnsTest {
                     new TestSolution(100.0), mockAcceptanceCriterion, mockStoppingCriterion));
 
     assertEquals("candidateSolution objective must be finite.", exception.getMessage());
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
   }
@@ -331,6 +348,7 @@ class AlnsTest {
 
     assertEquals(objective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockAcceptanceCriterion).shouldAccept(any());
   }
 
@@ -341,7 +359,10 @@ class AlnsTest {
     "120.0, true, true, ACCEPTED, 100.0",
     "120.0, true, false, REJECTED, 100.0",
     "40.0, false, true, REJECTED, 100.0",
-    "40.0, false, false, REJECTED, 100.0"
+    "40.0, false, false, REJECTED, 100.0",
+    "NaN, false, true, REJECTED, 100.0",
+    "Infinity, false, true, REJECTED, 100.0",
+    "-Infinity, false, true, REJECTED, 100.0"
   })
   void solve_ShouldClassifyCandidateAndUpdateBest_WhenCandidateIsEvaluated(
       double candidateObjective,
@@ -359,6 +380,7 @@ class AlnsTest {
 
     assertEquals(expectedBestObjective, result.bestSolution().getObjectiveValue());
     assertEquals(1, result.totalIterations());
+
     verify(mockOperatorSelector).reset();
     verify(mockAcceptanceCriterion).reset();
     verify(mockStoppingCriterion).reset();
@@ -367,6 +389,7 @@ class AlnsTest {
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedbackCaptor =
         ArgumentCaptor.captor();
     verify(mockOperatorSelector).update(feedbackCaptor.capture());
+
     assertEquals(expectedStatus, feedbackCaptor.getValue().status());
     assertSame(candidateSolution, feedbackCaptor.getValue().candidateSolution());
     assertEquals(
@@ -415,7 +438,8 @@ class AlnsTest {
     "80.0, true, BEST, 80.0",
     "120.0, true, ACCEPTED, 100.0",
     "110.0, true, ACCEPTED, 100.0",
-    "80.0, false, REJECTED, 100.0"
+    "80.0, false, REJECTED, 100.0",
+    "-Infinity, false, REJECTED, 100.0"
   })
   void solve_ShouldEvaluateRefinedCandidate_WhenLocalSearchRuns(
       double objective, boolean feasible, SolutionStatus status, double bestObjective) {
@@ -429,6 +453,7 @@ class AlnsTest {
         .thenAnswer(
             invocation -> {
               AcceptanceContext<TestSolution> context = invocation.getArgument(0);
+              assertEquals(1, context.iteration());
               assertSame(refined, context.candidateSolution());
               assertEquals(100.0, context.currentSolution().getObjectiveValue());
               assertEquals(100.0, context.bestSolution().getObjectiveValue());
@@ -456,6 +481,7 @@ class AlnsTest {
     }
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
     order.verify(mockOperatorSelector).update(feedback.capture());
+
     assertSame(refined, feedback.getValue().candidateSolution());
     assertEquals(status, feedback.getValue().status());
     assertEquals(bestObjective, result.bestSolution().getObjectiveValue());
@@ -488,6 +514,7 @@ class AlnsTest {
         .shouldAccept(argThat(context -> context.candidateSolution() == repaired));
     ArgumentCaptor<OperatorSelectionFeedback<TestSolution>> feedback = ArgumentCaptor.captor();
     verify(mockOperatorSelector).update(feedback.capture());
+
     assertEquals(
         feasible ? SolutionStatus.ACCEPTED : SolutionStatus.REJECTED, feedback.getValue().status());
     assertEquals(
@@ -520,6 +547,7 @@ class AlnsTest {
             ? "LocalSearch.apply(...) must not return null."
             : "candidateSolution objective must be finite.",
         exception.getMessage());
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
     verify(mockVisitedSolutionTracker, times(1)).recordIfNew(any());
@@ -540,6 +568,7 @@ class AlnsTest {
             () ->
                 solver.solve(
                     new TestSolution(100.0), mockAcceptanceCriterion, new MaxIterations<>(1))));
+
     verify(mockAcceptanceCriterion, never()).shouldAccept(any());
     verify(mockOperatorSelector, never()).update(any());
   }
@@ -590,6 +619,7 @@ class AlnsTest {
             .onIteration(contexts::add)
             .build();
     OperatorSelection selection = new OperatorSelection(0, 0);
+
     when(mockOperatorSelector.select(any())).thenReturn(selection);
     when(mockRepairOperator.apply(any(), any()))
         .thenReturn(
@@ -607,6 +637,10 @@ class AlnsTest {
             new MaxIterations<>(5));
 
     assertEquals(5, contexts.size());
+
+    ArgumentCaptor<OperatorSelectionContext<TestSolution>> selectionContexts =
+        ArgumentCaptor.captor();
+    verify(mockOperatorSelector, times(5)).select(selectionContexts.capture());
     List<SolutionStatus> statuses =
         List.of(
             SolutionStatus.ACCEPTED,
@@ -619,6 +653,7 @@ class AlnsTest {
     for (int i = 0; i < contexts.size(); i++) {
       IterationContext<TestSolution> context = contexts.get(i);
       assertEquals(i + 1, context.iteration());
+      assertEquals(i + 1, selectionContexts.getAllValues().get(i).iteration());
       assertEquals(statuses.get(i), context.status());
       assertEquals(i != 3, context.isRewardEligible());
       assertSame(selection, context.operatorSelection());
@@ -634,7 +669,9 @@ class AlnsTest {
     assertSame(candidates.get(3), contexts.get(4).currentSolution());
     assertSame(result.bestSolution(), contexts.get(4).bestSolution());
     assertEquals(collectStatistics, result.statistics().isEnabled());
-    assertEquals(collectStatistics ? 5 : 0, result.statistics().getIterationRuntimesNanos().size());
+    if (collectStatistics) {
+      assertEquals(6, result.statistics().getIterationRuntimesNanos().size());
+    }
   }
 
   @Test
@@ -646,6 +683,7 @@ class AlnsTest {
             .localSearch(mockLocalSearch)
             .onIteration(mockIterationCallback)
             .build();
+
     when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
     when(mockRepairOperator.apply(any(), any())).thenReturn(repaired);
     when(mockLocalSearch.apply(any(), any())).thenReturn(refined);
@@ -659,6 +697,7 @@ class AlnsTest {
     ArgumentCaptor<IterationContext<TestSolution>> contextCaptor = ArgumentCaptor.captor();
     order.verify(mockIterationCallback).onIteration(contextCaptor.capture());
     order.verifyNoMoreInteractions();
+
     IterationContext<TestSolution> context = contextCaptor.getValue();
     assertSame(refined, context.candidateSolution());
     assertSame(refined, context.currentSolution());
@@ -675,6 +714,7 @@ class AlnsTest {
         solver.solve(new TestSolution(100.0), context -> true, context -> true);
 
     assertEquals(0, result.totalIterations());
+
     verifyNoInteractions(mockIterationCallback);
   }
 
@@ -691,6 +731,7 @@ class AlnsTest {
         assertThrows(
             IllegalStateException.class,
             () -> solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2))));
+
     var order = inOrder(mockOperatorSelector, mockIterationCallback);
     order.verify(mockOperatorSelector).update(any());
     order.verify(mockIterationCallback).onIteration(any());

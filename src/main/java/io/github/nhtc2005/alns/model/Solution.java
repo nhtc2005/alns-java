@@ -26,7 +26,8 @@ public interface Solution<S extends Solution<S>> {
   /**
    * Returns the objective value to minimize.
    *
-   * @return the objective value; must be finite for initial solutions and repaired candidates
+   * @return the objective value; must be finite for feasible solutions, while infeasible solutions
+   *     may return any value, including infinities or {@code NaN}
    */
   double getObjectiveValue();
 

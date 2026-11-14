@@ -9,32 +9,49 @@ import java.util.Objects;
 /**
  * Stores objective histories, iteration runtimes, and outcome counts from one ALNS search.
  *
- * <p>Enabled histories contain the initial objectives followed by one entry per completed
- * iteration; runtimes contain only iteration entries. Disabled statistics have empty histories and
- * zero totals. Outcomes are counted independently of reward eligibility, and each operator in a
- * selected pair receives the pair's outcome. Retaining full histories uses memory proportional to
- * iteration count.
+ * <p>Enabled histories and runtimes contain an entry for the initial solution followed by one entry
+ * per completed iteration, so index {@code k} corresponds to iteration {@code k}; the initial
+ * runtime is zero. Data getters throw {@link IllegalStateException} when collection is disabled.
+ * Outcomes are counted independently of reward eligibility, and each operator in a selected pair
+ * receives the pair's outcome. Retaining full histories uses memory proportional to iteration
+ * count.
  */
 public final class AlnsStatistics {
 
-  private static final AlnsStatistics DISABLED = new AlnsStatistics(false, 0, 0);
+  private static final AlnsStatistics DISABLED = new AlnsStatistics(false, List.of(), List.of());
 
   private final boolean enabled;
+
+  private final List<String> destroyOperatorNames;
+  private final List<String> repairOperatorNames;
+
   private final List<Double> currentObjectiveValues = new ArrayList<>();
   private final List<Double> bestObjectiveValues = new ArrayList<>();
   private final List<Long> iterationRuntimesNanos = new ArrayList<>();
+
   private final long[] statusCounts = new long[SolutionStatus.values().length];
   private final long[][] destroyOperatorCounts;
   private final long[][] repairOperatorCounts;
 
   AlnsStatistics(int destroyOperatorCount, int repairOperatorCount) {
-    this(true, destroyOperatorCount, repairOperatorCount);
+    this(
+        Alns.defaultOperatorNames("destroy", destroyOperatorCount),
+        Alns.defaultOperatorNames("repair", repairOperatorCount));
   }
 
-  private AlnsStatistics(boolean enabled, int destroyOperatorCount, int repairOperatorCount) {
+  AlnsStatistics(List<String> destroyOperatorNames, List<String> repairOperatorNames) {
+    this(true, destroyOperatorNames, repairOperatorNames);
+  }
+
+  private AlnsStatistics(
+      boolean enabled, List<String> destroyOperatorNames, List<String> repairOperatorNames) {
     this.enabled = enabled;
-    this.destroyOperatorCounts = new long[destroyOperatorCount][SolutionStatus.values().length];
-    this.repairOperatorCounts = new long[repairOperatorCount][SolutionStatus.values().length];
+    this.destroyOperatorNames = List.copyOf(destroyOperatorNames);
+    this.repairOperatorNames = List.copyOf(repairOperatorNames);
+    this.destroyOperatorCounts =
+        new long[destroyOperatorNames.size()][SolutionStatus.values().length];
+    this.repairOperatorCounts =
+        new long[repairOperatorNames.size()][SolutionStatus.values().length];
   }
 
   static AlnsStatistics disabled() {
@@ -44,6 +61,7 @@ public final class AlnsStatistics {
   void collectInitial(double currentObjectiveValue, double bestObjectiveValue) {
     currentObjectiveValues.add(currentObjectiveValue);
     bestObjectiveValues.add(bestObjectiveValue);
+    iterationRuntimesNanos.add(0L);
   }
 
   void collectIteration(
@@ -55,9 +73,11 @@ public final class AlnsStatistics {
     int statusIndex = status.ordinal();
     long[] destroyCounts = destroyOperatorCounts[operatorSelection.destroyOperatorIndex()];
     long[] repairCounts = repairOperatorCounts[operatorSelection.repairOperatorIndex()];
+
     currentObjectiveValues.add(currentObjectiveValue);
     bestObjectiveValues.add(bestObjectiveValue);
     iterationRuntimesNanos.add(iterationRuntimeNanos);
+
     destroyCounts[statusIndex]++;
     repairCounts[statusIndex]++;
     statusCounts[statusIndex]++;
@@ -73,11 +93,35 @@ public final class AlnsStatistics {
   }
 
   /**
+   * Returns the destroy operator names; position {@code i} names destroy operator {@code i}.
+   *
+   * @return an unmodifiable list of destroy operator names
+   * @throws IllegalStateException if statistics collection is disabled
+   */
+  public List<String> getDestroyOperatorNames() {
+    ensureEnabled();
+    return destroyOperatorNames;
+  }
+
+  /**
+   * Returns the repair operator names; position {@code i} names repair operator {@code i}.
+   *
+   * @return an unmodifiable list of repair operator names
+   * @throws IllegalStateException if statistics collection is disabled
+   */
+  public List<String> getRepairOperatorNames() {
+    ensureEnabled();
+    return repairOperatorNames;
+  }
+
+  /**
    * Returns an unmodifiable snapshot of current objectives, including the initial value.
    *
    * @return an unmodifiable snapshot of current objectives, including the initial value
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Double> getCurrentObjectiveValues() {
+    ensureEnabled();
     return List.copyOf(currentObjectiveValues);
   }
 
@@ -85,20 +129,25 @@ public final class AlnsStatistics {
    * Returns an unmodifiable snapshot of best objectives, including the initial value.
    *
    * @return an unmodifiable snapshot of best objectives, including the initial value
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Double> getBestObjectiveValues() {
+    ensureEnabled();
     return List.copyOf(bestObjectiveValues);
   }
 
   /**
-   * Returns an unmodifiable snapshot of iteration runtimes in nanoseconds.
+   * Returns an unmodifiable snapshot of iteration runtimes in nanoseconds, including a zero entry
+   * for the initial solution.
    *
    * <p>Timing includes selection, operators, local search, acceptance, tracking, and selector
    * feedback, but excludes stopping checks, statistics collection, and iteration callbacks.
    *
    * @return an unmodifiable snapshot of iteration runtimes in nanoseconds
+   * @throws IllegalStateException if statistics collection is disabled
    */
   public List<Long> getIterationRuntimesNanos() {
+    ensureEnabled();
     return List.copyOf(iterationRuntimesNanos);
   }
 
@@ -108,11 +157,12 @@ public final class AlnsStatistics {
    * @param operatorIndex the zero-based operator index
    * @param status the outcome to count
    * @return the number of iterations with that operator and outcome
-   * @throws IndexOutOfBoundsException if the index is invalid, including when statistics are
-   *     disabled
+   * @throws IllegalStateException if statistics collection is disabled
+   * @throws IndexOutOfBoundsException if the index is invalid
    * @throws NullPointerException if {@code status} is null
    */
   public long getDestroyOperatorCount(int operatorIndex, SolutionStatus status) {
+    ensureEnabled();
     Objects.checkIndex(operatorIndex, destroyOperatorCounts.length);
     Objects.requireNonNull(status, "status must not be null.");
     return destroyOperatorCounts[operatorIndex][status.ordinal()];
@@ -124,11 +174,12 @@ public final class AlnsStatistics {
    * @param operatorIndex the zero-based operator index
    * @param status the outcome to count
    * @return the number of iterations with that operator and outcome
-   * @throws IndexOutOfBoundsException if the index is invalid, including when statistics are
-   *     disabled
+   * @throws IllegalStateException if statistics collection is disabled
+   * @throws IndexOutOfBoundsException if the index is invalid
    * @throws NullPointerException if {@code status} is null
    */
   public long getRepairOperatorCount(int operatorIndex, SolutionStatus status) {
+    ensureEnabled();
     Objects.checkIndex(operatorIndex, repairOperatorCounts.length);
     Objects.requireNonNull(status, "status must not be null.");
     return repairOperatorCounts[operatorIndex][status.ordinal()];
@@ -138,11 +189,20 @@ public final class AlnsStatistics {
    * Returns the total number of iterations with the specified outcome.
    *
    * @param status the outcome to count
-   * @return the outcome count, or zero when collection is disabled
+   * @return the outcome count
+   * @throws IllegalStateException if statistics collection is disabled
    * @throws NullPointerException if {@code status} is null
    */
   public long getStatusCount(SolutionStatus status) {
+    ensureEnabled();
     Objects.requireNonNull(status, "status must not be null.");
     return statusCounts[status.ordinal()];
+  }
+
+  private void ensureEnabled() {
+    if (!enabled) {
+      throw new IllegalStateException(
+          "Statistics collection is disabled; enable it with collectStatistics(true).");
+    }
   }
 }

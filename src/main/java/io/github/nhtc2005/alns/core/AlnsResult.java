@@ -33,9 +33,9 @@ public record AlnsResult<S extends Solution<S>>(
   /**
    * Creates a result with statistics disabled.
    *
-   * @param bestSolution the best solution
+   * @param bestSolution the best feasible solution found by the solver
    * @param totalIterations the number of completed iterations
-   * @param elapsedNanos the search duration in nanoseconds
+   * @param elapsedNanos the search duration in nanoseconds, excluding component resets
    */
   public AlnsResult(S bestSolution, long totalIterations, long elapsedNanos) {
     this(bestSolution, totalIterations, elapsedNanos, AlnsStatistics.disabled());

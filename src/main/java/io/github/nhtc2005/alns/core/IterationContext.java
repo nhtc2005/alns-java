@@ -10,10 +10,11 @@ import io.github.nhtc2005.alns.selection.OperatorSelection;
  * <p>Solutions are shared references, not snapshots, and must not be modified by the callback.
  *
  * @param <S> the solution type
- * @param iteration the number of completed iterations; starts at one for each solve
+ * @param iteration the one-based index of the completed iteration
  * @param elapsedNanos the elapsed search time in nanoseconds before this callback
  * @param status the candidate outcome
- * @param isRewardEligible whether the configured outcome score may be applied
+ * @param isRewardEligible whether the configured outcome score may be applied; otherwise the
+ *     rejected-outcome score applies
  * @param operatorSelection the operator pair used in this iteration
  * @param candidateSolution the candidate after repair and optional local search, even if rejected
  * @param currentSolution the current feasible solution after evaluating the candidate

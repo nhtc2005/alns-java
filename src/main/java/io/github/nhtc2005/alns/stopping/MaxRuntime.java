@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <S> the solution type
  */
-public class MaxRuntime<S extends Solution<S>> implements StoppingCriterion<S> {
+public final class MaxRuntime<S extends Solution<S>> implements StoppingCriterion<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(MaxRuntime.class);
 

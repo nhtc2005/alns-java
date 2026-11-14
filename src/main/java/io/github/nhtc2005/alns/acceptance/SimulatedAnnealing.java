@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <S> the solution type
  */
-public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
+public final class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCriterion<S> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SimulatedAnnealing.class);
 
@@ -322,6 +322,7 @@ public class SimulatedAnnealing<S extends Solution<S>> implements AcceptanceCrit
 
     SimulatedAnnealing<S> criterion =
         new SimulatedAnnealing<>(startTemperature, endTemperature, step, method);
+
     LOGGER.debug(
         "Fitted simulated annealing: startTemperature={}, endTemperature={}, step={}, method={}",
         startTemperature,
