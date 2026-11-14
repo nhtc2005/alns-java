@@ -24,6 +24,7 @@ import io.github.nhtc2005.alns.stopping.MaxIterations;
 import io.github.nhtc2005.alns.stopping.NoImprovement;
 import io.github.nhtc2005.alns.stopping.StoppingCriterion;
 import io.github.nhtc2005.alns.util.TestSolution;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.random.RandomGenerator;
@@ -49,6 +50,7 @@ class AlnsTest {
   @Mock private StoppingCriterion<TestSolution> mockStoppingCriterion;
   @Mock private VisitedSolutionTracker<TestSolution> mockVisitedSolutionTracker;
   @Mock private LocalSearch<TestSolution> mockLocalSearch;
+  @Mock private IterationCallback<TestSolution> mockIterationCallback;
 
   private Alns<TestSolution> alns;
 
@@ -107,6 +109,15 @@ class AlnsTest {
         assertThrows(
             NullPointerException.class, () -> Alns.<TestSolution>builder().localSearch(null));
     assertEquals("localSearch must not be null.", exception.getMessage());
+  }
+
+  @Test
+  void builder_ShouldThrowException_WhenCallbackIsNull() {
+    NullPointerException exception =
+        assertThrows(
+            NullPointerException.class, () -> Alns.<TestSolution>builder().onIteration(null));
+
+    assertEquals("callback must not be null.", exception.getMessage());
   }
 
   @Test
@@ -559,6 +570,160 @@ class AlnsTest {
     assertEquals(100.0, initial.objective);
     assertEquals(80.0, result.bestSolution().objective);
     assertNotSame(initial, result.bestSolution());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void solve_ShouldNotifyCallbackWithCompletedState_WhenIterationsComplete(
+      boolean collectStatistics) {
+    List<IterationContext<TestSolution>> contexts = new ArrayList<>();
+    List<TestSolution> candidates =
+        List.of(
+            new TestSolution(120.0),
+            new TestSolution(110.0),
+            new TestSolution(90.0),
+            new TestSolution(90.0),
+            new TestSolution(130.0));
+    Alns<TestSolution> solver =
+        localSearchBuilder()
+            .collectStatistics(collectStatistics)
+            .onIteration(contexts::add)
+            .build();
+    OperatorSelection selection = new OperatorSelection(0, 0);
+    when(mockOperatorSelector.select(any())).thenReturn(selection);
+    when(mockRepairOperator.apply(any(), any()))
+        .thenReturn(
+            candidates.get(0),
+            candidates.get(1),
+            candidates.get(2),
+            candidates.get(3),
+            candidates.get(4));
+    when(mockVisitedSolutionTracker.recordIfNew(any())).thenReturn(true, true, true, true, false);
+
+    AlnsResult<TestSolution> result =
+        solver.solve(
+            new TestSolution(100.0),
+            context -> context.candidateSolution().getObjectiveValue() <= 120.0,
+            new MaxIterations<>(5));
+
+    assertEquals(5, contexts.size());
+    List<SolutionStatus> statuses =
+        List.of(
+            SolutionStatus.ACCEPTED,
+            SolutionStatus.BETTER,
+            SolutionStatus.BEST,
+            SolutionStatus.ACCEPTED,
+            SolutionStatus.REJECTED);
+    double[] currentObjectives = {120, 110, 90, 90, 90};
+    double[] bestObjectives = {100, 100, 90, 90, 90};
+    for (int i = 0; i < contexts.size(); i++) {
+      IterationContext<TestSolution> context = contexts.get(i);
+      assertEquals(i + 1, context.iteration());
+      assertEquals(statuses.get(i), context.status());
+      assertEquals(i != 3, context.isRewardEligible());
+      assertSame(selection, context.operatorSelection());
+      assertSame(candidates.get(i), context.candidateSolution());
+      assertEquals(currentObjectives[i], context.currentSolution().getObjectiveValue());
+      assertEquals(bestObjectives[i], context.bestSolution().getObjectiveValue());
+      assertTrue(context.elapsedNanos() >= 0);
+      assertTrue(context.elapsedNanos() <= result.elapsedNanos());
+      if (i > 0) {
+        assertTrue(context.elapsedNanos() >= contexts.get(i - 1).elapsedNanos());
+      }
+    }
+    assertSame(candidates.get(3), contexts.get(4).currentSolution());
+    assertSame(result.bestSolution(), contexts.get(4).bestSolution());
+    assertEquals(collectStatistics, result.statistics().isEnabled());
+    assertEquals(collectStatistics ? 5 : 0, result.statistics().getIterationRuntimesNanos().size());
+  }
+
+  @Test
+  void solve_ShouldInvokeCallbackAfterFeedback_WhenLocalSearchRefinesCandidate() {
+    TestSolution repaired = new TestSolution(110.0);
+    TestSolution refined = new TestSolution(80.0);
+    Alns<TestSolution> solver =
+        localSearchBuilder()
+            .localSearch(mockLocalSearch)
+            .onIteration(mockIterationCallback)
+            .build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(repaired);
+    when(mockLocalSearch.apply(any(), any())).thenReturn(refined);
+
+    AlnsResult<TestSolution> result =
+        solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(1));
+
+    var order = inOrder(mockLocalSearch, mockOperatorSelector, mockIterationCallback);
+    order.verify(mockLocalSearch).apply(same(repaired), same(mockRandomGenerator));
+    order.verify(mockOperatorSelector).update(any());
+    ArgumentCaptor<IterationContext<TestSolution>> contextCaptor = ArgumentCaptor.captor();
+    order.verify(mockIterationCallback).onIteration(contextCaptor.capture());
+    order.verifyNoMoreInteractions();
+    IterationContext<TestSolution> context = contextCaptor.getValue();
+    assertSame(refined, context.candidateSolution());
+    assertSame(refined, context.currentSolution());
+    assertSame(result.bestSolution(), context.bestSolution());
+    assertEquals(SolutionStatus.BEST, context.status());
+    assertEquals(List.of(100.0, 80.0), result.statistics().getBestObjectiveValues());
+  }
+
+  @Test
+  void solve_ShouldSkipCallback_WhenNoIterationsAreCompleted() {
+    Alns<TestSolution> solver = localSearchBuilder().onIteration(mockIterationCallback).build();
+
+    AlnsResult<TestSolution> result =
+        solver.solve(new TestSolution(100.0), context -> true, context -> true);
+
+    assertEquals(0, result.totalIterations());
+    verifyNoInteractions(mockIterationCallback);
+  }
+
+  @Test
+  void solve_ShouldPropagateException_WhenCallbackFails() {
+    IllegalStateException failure = new IllegalStateException("Callback failed.");
+    Alns<TestSolution> solver = localSearchBuilder().onIteration(mockIterationCallback).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(new TestSolution(90.0));
+    doThrow(failure).when(mockIterationCallback).onIteration(any());
+
+    assertSame(
+        failure,
+        assertThrows(
+            IllegalStateException.class,
+            () -> solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2))));
+    var order = inOrder(mockOperatorSelector, mockIterationCallback);
+    order.verify(mockOperatorSelector).update(any());
+    order.verify(mockIterationCallback).onIteration(any());
+    order.verifyNoMoreInteractions();
+    verify(mockRepairOperator, times(1)).apply(any(), any());
+  }
+
+  @Test
+  void solve_ShouldSkipCallback_WhenIterationFailsBeforeCompletion() {
+    Alns<TestSolution> solver = localSearchBuilder().onIteration(mockIterationCallback).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(new TestSolution(Double.NaN));
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(1)));
+
+    verifyNoInteractions(mockIterationCallback);
+  }
+
+  @Test
+  void solve_ShouldRestartCallbackIterationCount_WhenSameSolverIsReused() {
+    List<Long> iterations = new ArrayList<>();
+    Alns<TestSolution> solver =
+        localSearchBuilder().onIteration(context -> iterations.add(context.iteration())).build();
+    when(mockOperatorSelector.select(any())).thenReturn(new OperatorSelection(0, 0));
+    when(mockRepairOperator.apply(any(), any())).thenReturn(new TestSolution(90.0));
+
+    for (int run = 0; run < 2; run++) {
+      solver.solve(new TestSolution(100.0), context -> true, new MaxIterations<>(2));
+    }
+
+    assertEquals(List.of(1L, 2L, 1L, 2L), iterations);
   }
 
   @Test

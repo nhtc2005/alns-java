@@ -38,6 +38,7 @@ public final class Alns<S extends Solution<S>> {
   private final boolean collectStatistics;
   private final VisitedSolutionTracker<S> visitedSolutionTracker;
   private final LocalSearch<S> localSearch;
+  private final IterationCallback<S> iterationCallback;
 
   /**
    * Creates a solver with statistics and visit tracking disabled.
@@ -118,6 +119,7 @@ public final class Alns<S extends Solution<S>> {
         operatorSelector,
         collectStatistics,
         visitedSolutionTracker,
+        null,
         null);
   }
 
@@ -128,7 +130,8 @@ public final class Alns<S extends Solution<S>> {
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker,
-      LocalSearch<S> localSearch) {
+      LocalSearch<S> localSearch,
+      IterationCallback<S> iterationCallback) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
     this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
@@ -139,12 +142,13 @@ public final class Alns<S extends Solution<S>> {
     this.visitedSolutionTracker =
         Objects.requireNonNull(visitedSolutionTracker, "visitedSolutionTracker must not be null.");
     this.localSearch = localSearch;
+    this.iterationCallback = iterationCallback;
     this.operatorSelector.validateOperatorCounts(
         this.destroyOperators.size(), this.repairOperators.size());
   }
 
   /**
-   * Returns a builder with statistics, visit tracking, and local search disabled by default.
+   * Returns a builder with statistics, visit tracking, local search, and callbacks disabled.
    *
    * @param <S> the solution type
    * @return a new builder
@@ -169,6 +173,10 @@ public final class Alns<S extends Solution<S>> {
    * eligible; other accepted candidates require a new key and an objective different from the
    * current solution. Tracking does not prevent revisits. Exceptions from user components
    * propagate.
+   *
+   * <p>If configured, the iteration callback runs synchronously after feedback, statistics, and
+   * incrementing the iteration count. It runs even when statistics are disabled and is not reset
+   * between runs. Callback time counts toward total runtime, but not iteration statistics.
    *
    * @param initialSolution the non-null feasible initial solution with a finite objective
    * @param acceptanceCriterion the non-null acceptance policy
@@ -295,6 +303,18 @@ public final class Alns<S extends Solution<S>> {
             iterationRuntimeNanos);
       }
       iteration++;
+      if (iterationCallback != null) {
+        iterationCallback.onIteration(
+            new IterationContext<>(
+                iteration,
+                System.nanoTime() - startedAt,
+                status,
+                isRewardEligible,
+                operatorSelection,
+                candidateSolution,
+                currentSolution,
+                bestSolution));
+      }
     }
 
     return new AlnsResult<>(bestSolution, iteration, System.nanoTime() - startedAt, statistics);
@@ -348,6 +368,7 @@ public final class Alns<S extends Solution<S>> {
     private boolean collectStatistics;
     private VisitedSolutionTracker<S> visitedSolutionTracker = VisitedSolutionTracker.disabled();
     private LocalSearch<S> localSearch;
+    private IterationCallback<S> iterationCallback;
 
     private Builder() {}
 
@@ -442,6 +463,18 @@ public final class Alns<S extends Solution<S>> {
     }
 
     /**
+     * Sets the callback invoked after each completed iteration; disabled by default.
+     *
+     * @param callback the synchronous callback, shared across runs
+     * @return this builder
+     * @throws NullPointerException if {@code callback} is null
+     */
+    public Builder<S> onIteration(IterationCallback<S> callback) {
+      this.iterationCallback = Objects.requireNonNull(callback, "callback must not be null.");
+      return this;
+    }
+
+    /**
      * Creates a solver and validates the selector's operator counts.
      *
      * @return a solver with copied operator lists and shared component instances
@@ -472,7 +505,8 @@ public final class Alns<S extends Solution<S>> {
           configuredOperatorSelector,
           collectStatistics,
           visitedSolutionTracker,
-          localSearch);
+          localSearch,
+          iterationCallback);
     }
   }
 }

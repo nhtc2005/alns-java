@@ -94,7 +94,7 @@ public final class AlnsStatistics {
    * Returns an unmodifiable snapshot of iteration runtimes in nanoseconds.
    *
    * <p>Timing includes selection, operators, local search, acceptance, tracking, and selector
-   * feedback, but excludes stopping checks and statistics collection.
+   * feedback, but excludes stopping checks, statistics collection, and iteration callbacks.
    *
    * @return an unmodifiable snapshot of iteration runtimes in nanoseconds
    */
