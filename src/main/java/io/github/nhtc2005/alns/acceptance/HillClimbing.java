@@ -12,6 +12,9 @@ import io.github.nhtc2005.alns.model.Solution;
  */
 public final class HillClimbing<S extends Solution<S>> implements AcceptanceCriterion<S> {
 
+  /** Creates a stateless hill-climbing criterion. */
+  public HillClimbing() {}
+
   @Override
   public boolean shouldAccept(AcceptanceContext<S> context) {
     return context.candidateSolution().getObjectiveValue()
