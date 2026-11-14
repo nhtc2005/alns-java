@@ -17,11 +17,11 @@ policy receives feedback based on the outcome.
 
 ## Installation
 
-Download [alns-0.1.0.jar](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0.jar)
-from [release v0.1.0](https://github.com/nhtc2005/alns-java/releases/tag/v0.1.0)
+Download [alns-0.2.0.jar](https://github.com/nhtc2005/alns-java/releases/download/v0.2.0/alns-0.2.0.jar)
+from [release v0.2.0](https://github.com/nhtc2005/alns-java/releases/tag/v0.2.0)
 and add it to your application's classpath.
-[Sources](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0-sources.jar)
-and [Javadoc](https://github.com/nhtc2005/alns-java/releases/download/v0.1.0/alns-0.1.0-javadoc.jar)
+[Sources](https://github.com/nhtc2005/alns-java/releases/download/v0.2.0/alns-0.2.0-sources.jar)
+and [Javadoc](https://github.com/nhtc2005/alns-java/releases/download/v0.2.0/alns-0.2.0-javadoc.jar)
 JARs are also available.
 
 The library requires `org.slf4j:slf4j-api:2.0.20` on the classpath. Dependencies are
@@ -29,19 +29,20 @@ not bundled in the release JAR.
 
 ## API documentation
 
-Build a solver with `Alns.builder()` using your own `Solution<S>` type and
-problem-specific destroy and repair operators. The builder lets you choose an
-operator selection policy and optionally enable local search, visited-solution
-tracking, statistics, and iteration callbacks. These optional features are
-disabled by default; visit tracking controls operator reward eligibility without
-preventing repeated solutions from being accepted.
+To solve your own problem, provide a solution type, a feasible initial
+solution, and problem-specific destroy and repair operators. Acceptance
+criteria, operator selection policies, and stopping criteria are included and
+can be combined freely or replaced with your own implementations.
 
-Start the search with `solve(...)`, supplying a feasible initial solution and
-your choice of acceptance and stopping criteria.
+Optional features include local search, visited-solution tracking, statistics,
+and iteration callbacks; all are disabled by default. Operators can also be
+named for clearer logs and statistics.
 
-The [API documentation for version 0.1.0](https://nhtc2005.github.io/alns-java/)
+The [API documentation for version 0.2.0](https://nhtc2005.github.io/alns-java/)
 is available on GitHub Pages. To generate it locally, see
 [Documentation](CONTRIBUTING.md#documentation).
+Documentation for earlier versions is included as a Javadoc JAR in each
+[release](https://github.com/nhtc2005/alns-java/releases).
 
 ## Contributing
 

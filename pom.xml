@@ -7,9 +7,9 @@
 
     <groupId>io.github.nhtc2005</groupId>
     <artifactId>alns</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
 
-    <name>ALNS Java</name>
+    <name>ALNS</name>
     <description>
         An Adaptive Large Neighbourhood Search framework for Java.
     </description>
