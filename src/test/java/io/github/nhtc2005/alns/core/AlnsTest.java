@@ -426,6 +426,7 @@ class AlnsTest {
         .thenAnswer(
             invocation -> {
               AcceptanceContext<TestSolution> context = invocation.getArgument(0);
+              assertEquals(1, context.iteration());
               assertSame(refined, context.candidateSolution());
               assertEquals(100.0, context.currentSolution().getObjectiveValue());
               assertEquals(100.0, context.bestSolution().getObjectiveValue());
@@ -604,6 +605,9 @@ class AlnsTest {
             new MaxIterations<>(5));
 
     assertEquals(5, contexts.size());
+    ArgumentCaptor<OperatorSelectionContext<TestSolution>> selectionContexts =
+        ArgumentCaptor.captor();
+    verify(mockOperatorSelector, times(5)).select(selectionContexts.capture());
     List<SolutionStatus> statuses =
         List.of(
             SolutionStatus.ACCEPTED,
@@ -616,6 +620,7 @@ class AlnsTest {
     for (int i = 0; i < contexts.size(); i++) {
       IterationContext<TestSolution> context = contexts.get(i);
       assertEquals(i + 1, context.iteration());
+      assertEquals(i + 1, selectionContexts.getAllValues().get(i).iteration());
       assertEquals(statuses.get(i), context.status());
       assertEquals(i != 3, context.isRewardEligible());
       assertSame(selection, context.operatorSelection());
@@ -631,7 +636,7 @@ class AlnsTest {
     assertSame(candidates.get(3), contexts.get(4).currentSolution());
     assertSame(result.bestSolution(), contexts.get(4).bestSolution());
     assertEquals(collectStatistics, result.statistics().isEnabled());
-    assertEquals(collectStatistics ? 5 : 0, result.statistics().getIterationRuntimesNanos().size());
+    assertEquals(collectStatistics ? 6 : 0, result.statistics().getIterationRuntimesNanos().size());
   }
 
   @Test

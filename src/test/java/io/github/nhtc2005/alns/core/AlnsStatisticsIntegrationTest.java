@@ -102,7 +102,7 @@ class AlnsStatisticsIntegrationTest {
     assertEquals(0, result.totalIterations());
     assertEquals(List.of(100.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0), statistics.getBestObjectiveValues());
-    assertTrue(statistics.getIterationRuntimesNanos().isEmpty());
+    assertEquals(List.of(0L), statistics.getIterationRuntimesNanos());
     for (SolutionStatus status : SolutionStatus.values()) {
       assertEquals(0, statistics.getStatusCount(status));
       assertEquals(0, statistics.getDestroyOperatorCount(0, status));
@@ -176,7 +176,8 @@ class AlnsStatisticsIntegrationTest {
       }
     }
 
-    assertEquals(5, statistics.getIterationRuntimesNanos().size());
+    assertEquals(6, statistics.getIterationRuntimesNanos().size());
+    assertEquals(0L, statistics.getIterationRuntimesNanos().get(0));
     assertTrue(statistics.getIterationRuntimesNanos().stream().allMatch(runtime -> runtime >= 0));
     long totalIterationRuntimeNanos =
         statistics.getIterationRuntimesNanos().stream().mapToLong(Long::longValue).sum();
@@ -215,7 +216,7 @@ class AlnsStatisticsIntegrationTest {
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getCurrentObjectiveValues());
     assertEquals(List.of(200.0, 199.0, 198.0, 197.0), secondStatistics.getBestObjectiveValues());
     assertEquals(3, secondStatistics.getStatusCount(SolutionStatus.BEST));
-    assertEquals(3, secondStatistics.getIterationRuntimesNanos().size());
+    assertEquals(4, secondStatistics.getIterationRuntimesNanos().size());
   }
 
   @Test

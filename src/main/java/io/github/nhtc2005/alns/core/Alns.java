@@ -167,7 +167,8 @@ public final class Alns<S extends Solution<S>> {
    * <p>Resets the selector, criteria, and tracker before each run, but does not reset the RNG or
    * operators. The initial solution is copied, and statistics are created separately for each run.
    * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
-   * bests are accepted regardless of the acceptance decision.
+   * bests are accepted regardless of the acceptance decision. Iterations are numbered from one;
+   * iteration zero denotes the initial solution.
    *
    * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
    * Its result is checked again for feasibility and used by acceptance, tracking, feedback, and
@@ -179,9 +180,9 @@ public final class Alns<S extends Solution<S>> {
    * current solution. Tracking does not prevent revisits. Exceptions from user components
    * propagate.
    *
-   * <p>If configured, the iteration callback runs synchronously after feedback, statistics, and
-   * incrementing the iteration count. It runs even when statistics are disabled and is not reset
-   * between runs. Callback time counts toward total runtime, but not iteration statistics.
+   * <p>If configured, the iteration callback runs synchronously after feedback and statistics. It
+   * runs even when statistics are disabled and is not reset between runs. Callback time counts
+   * toward total runtime, but not iteration statistics.
    *
    * @param initialSolution the non-null feasible initial solution with a finite objective
    * @param acceptanceCriterion the non-null acceptance policy
@@ -240,6 +241,7 @@ public final class Alns<S extends Solution<S>> {
             bestSolution,
             currentSolution,
             randomGenerator))) {
+      iteration++;
       long iterationStartedAt = System.nanoTime();
       long elapsedNanos = iterationStartedAt - startedAt;
       OperatorSelection operatorSelection =
@@ -296,7 +298,7 @@ public final class Alns<S extends Solution<S>> {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug(
               "New best at iteration {}: objective {} -> {}",
-              iteration + 1,
+              iteration,
               bestSolution.getObjectiveValue(),
               candidateSolution.getObjectiveValue());
         }
@@ -328,7 +330,6 @@ public final class Alns<S extends Solution<S>> {
             bestSolution.getObjectiveValue(),
             iterationRuntimeNanos);
       }
-      iteration++;
       if (LOGGER.isTraceEnabled()) {
         LOGGER.trace(
             "Iteration {}: destroyOperator={}, repairOperator={}, status={}, candidateObjective={}, currentObjective={}, bestObjective={}, rewardEligible={}",

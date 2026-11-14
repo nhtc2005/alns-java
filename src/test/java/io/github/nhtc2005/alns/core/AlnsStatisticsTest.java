@@ -28,7 +28,7 @@ class AlnsStatisticsTest {
     assertEquals(
         List.of(100.0, 80.0, 80.0, 85.0, 90.0, 70.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 80.0, 80.0, 80.0, 80.0, 70.0), statistics.getBestObjectiveValues());
-    assertEquals(List.of(5L, 7L, 9L, 11L, 13L), statistics.getIterationRuntimesNanos());
+    assertEquals(List.of(0L, 5L, 7L, 9L, 11L, 13L), statistics.getIterationRuntimesNanos());
 
     // Columns follow SolutionStatus order: BEST, BETTER, ACCEPTED, REJECTED.
     long[] expectedStatusCounts = {2, 1, 1, 1};
@@ -68,10 +68,10 @@ class AlnsStatisticsTest {
 
     assertEquals(List.of(100.0, 80.0), currentObjectiveValues);
     assertEquals(List.of(100.0, 80.0), bestObjectiveValues);
-    assertEquals(List.of(5L), iterationRuntimesNanos);
+    assertEquals(List.of(0L, 5L), iterationRuntimesNanos);
     assertEquals(List.of(100.0, 80.0, 90.0), statistics.getCurrentObjectiveValues());
     assertEquals(List.of(100.0, 80.0, 80.0), statistics.getBestObjectiveValues());
-    assertEquals(List.of(5L, 7L), statistics.getIterationRuntimesNanos());
+    assertEquals(List.of(0L, 5L, 7L), statistics.getIterationRuntimesNanos());
   }
 
   @Test

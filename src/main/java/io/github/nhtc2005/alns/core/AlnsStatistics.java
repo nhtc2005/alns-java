@@ -9,11 +9,11 @@ import java.util.Objects;
 /**
  * Stores objective histories, iteration runtimes, and outcome counts from one ALNS search.
  *
- * <p>Enabled histories contain the initial objectives followed by one entry per completed
- * iteration; runtimes contain only iteration entries. Disabled statistics have empty histories and
- * zero totals. Outcomes are counted independently of reward eligibility, and each operator in a
- * selected pair receives the pair's outcome. Retaining full histories uses memory proportional to
- * iteration count.
+ * <p>Enabled histories and runtimes contain an entry for the initial solution followed by one entry
+ * per completed iteration, so index {@code k} corresponds to iteration {@code k}; the initial
+ * runtime is zero. Disabled statistics have empty histories and zero totals. Outcomes are counted
+ * independently of reward eligibility, and each operator in a selected pair receives the pair's
+ * outcome. Retaining full histories uses memory proportional to iteration count.
  */
 public final class AlnsStatistics {
 
@@ -44,6 +44,7 @@ public final class AlnsStatistics {
   void collectInitial(double currentObjectiveValue, double bestObjectiveValue) {
     currentObjectiveValues.add(currentObjectiveValue);
     bestObjectiveValues.add(bestObjectiveValue);
+    iterationRuntimesNanos.add(0L);
   }
 
   void collectIteration(
@@ -91,7 +92,8 @@ public final class AlnsStatistics {
   }
 
   /**
-   * Returns an unmodifiable snapshot of iteration runtimes in nanoseconds.
+   * Returns an unmodifiable snapshot of iteration runtimes in nanoseconds, including a zero entry
+   * for the initial solution.
    *
    * <p>Timing includes selection, operators, local search, acceptance, tracking, and selector
    * feedback, but excludes stopping checks, statistics collection, and iteration callbacks.
