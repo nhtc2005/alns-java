@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build and test with logging disabled
+        run: sh ./mvnw -B -ntp clean verify -Dorg.slf4j.simpleLogger.defaultLogLevel=off
+      - name: Test with TRACE logging and generate Javadoc
+        run: sh ./mvnw -B -ntp verify javadoc:javadoc -Dorg.slf4j.simpleLogger.defaultLogLevel=trace
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-and-coverage-reports
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+          retention-days: 14

@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check release version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import xml.etree.ElementTree as ET
+
+          version = ET.parse("pom.xml").getroot().findtext("{http://maven.apache.org/POM/4.0.0}version")
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) or tag != f"v{version}":
+              raise SystemExit(f"Release tag {tag!r} must match POM version v{version}.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={version}\n")
+          PY
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build and test with logging disabled
+        run: sh ./mvnw -B -ntp clean verify -Dorg.slf4j.simpleLogger.defaultLogLevel=off
+      - name: Test with TRACE logging and package release artifacts
+        run: sh ./mvnw -B -ntp -Prelease verify javadoc:javadoc -Dorg.slf4j.simpleLogger.defaultLogLevel=trace
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-test-and-coverage-reports
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+          retention-days: 14
+      - name: Upload release JARs
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-jars
+          path: target/alns-${{ steps.version.outputs.version }}*.jar
+          if-no-files-found: error
+      - name: Upload Javadoc for GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: target/reports/apidocs
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-jars
+          path: artifacts
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" artifacts/*.jar \
+            --verify-tag --generate-notes --title "alns $RELEASE_VERSION"
+
+  pages:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Publish Javadoc
+        id: deployment
+        uses: actions/deploy-pages@v4
