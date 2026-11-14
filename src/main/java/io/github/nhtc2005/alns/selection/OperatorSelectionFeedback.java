@@ -14,8 +14,8 @@ import io.github.nhtc2005.alns.model.SolutionStatus;
  * @param candidateSolution the candidate after repair and optional local search, including when
  *     rejected
  * @param status the outcome assigned by the solver
- * @param isRewardEligible whether the configured outcome score may be applied; if false, the
- *     built-in adaptive selectors apply the rejected-outcome score instead
+ * @param isRewardEligible whether the configured outcome score may be applied; if {@code false},
+ *     the built-in adaptive selectors apply the rejected-outcome score instead
  */
 public record OperatorSelectionFeedback<S extends Solution<S>>(
     OperatorSelection operatorSelection,
@@ -27,7 +27,7 @@ public record OperatorSelectionFeedback<S extends Solution<S>>(
    * Creates feedback eligible for the configured outcome score.
    *
    * @param operatorSelection the selected operator pair
-   * @param candidateSolution the repaired candidate
+   * @param candidateSolution the candidate after repair and optional local search
    * @param status the outcome assigned by the solver
    */
   public OperatorSelectionFeedback(

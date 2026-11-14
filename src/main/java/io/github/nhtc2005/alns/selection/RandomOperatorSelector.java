@@ -4,7 +4,8 @@ import io.github.nhtc2005.alns.model.Solution;
 import java.util.random.RandomGenerator;
 
 /**
- * Selects destroy and repair operators independently and uniformly using the search RNG.
+ * Selects destroy and repair operators independently and uniformly using the search's random
+ * generator.
  *
  * @param <S> the solution type
  */

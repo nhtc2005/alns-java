@@ -35,7 +35,7 @@ public interface OperatorSelector<S extends Solution<S>> {
   default void reset() {}
 
   /**
-   * Validates the operator counts when the solver is constructed.
+   * Validates the operator counts when the solver is built.
    *
    * <p>Selectors with fixed counts must check that both counts match their configuration. The
    * default implementation does nothing.

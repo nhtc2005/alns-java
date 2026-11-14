@@ -36,8 +36,8 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
    *
    * @param destroyOperatorCount the positive number of destroy operators
    * @param repairOperatorCount the positive number of repair operators
-   * @param scores four finite non-negative scores in BEST, BETTER, ACCEPTED, REJECTED order; copied
-   *     on construction
+   * @param scores four finite non-negative scores in {@code BEST}, {@code BETTER}, {@code
+   *     ACCEPTED}, {@code REJECTED} order; copied on construction
    * @param decay the finite weight retention factor in {@code [0, 1]}
    * @throws IllegalArgumentException if any numeric parameter or score count is invalid
    * @throws NullPointerException if {@code scores} is null
@@ -163,9 +163,11 @@ public final class RouletteWheelOperatorSelector<S extends Solution<S>>
   }
 
   /**
-   * Returns a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order.
+   * Returns a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   * REJECTED} order.
    *
-   * @return a copy of the scores in BEST, BETTER, ACCEPTED, REJECTED order
+   * @return a copy of the scores in {@code BEST}, {@code BETTER}, {@code ACCEPTED}, {@code
+   *     REJECTED} order
    */
   public double[] getScores() {
     return scores.clone();

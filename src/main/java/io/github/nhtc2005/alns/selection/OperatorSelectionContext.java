@@ -9,8 +9,7 @@ import java.util.random.RandomGenerator;
  * <p>Solutions are shared references, not snapshots, and must not be modified by the selector.
  *
  * @param <S> the solution type
- * @param iteration the one-based index of the iteration being started; zero denotes the initial
- *     solution
+ * @param iteration the one-based index of the iteration being started
  * @param elapsedNanos the elapsed search time in nanoseconds, measured at the start of the
  *     iteration
  * @param bestSolution the best feasible solution found so far

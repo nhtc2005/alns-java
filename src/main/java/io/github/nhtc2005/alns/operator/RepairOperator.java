@@ -5,8 +5,7 @@ import io.github.nhtc2005.alns.model.Solution;
 /**
  * Repairs a destroyed solution to produce a candidate for an ALNS iteration.
  *
- * <p>The result must have a finite objective value. Repair need not succeed: candidates that remain
- * infeasible are rejected by the solver.
+ * <p>Repair need not succeed: candidates that remain infeasible are rejected by the solver.
  *
  * @param <S> the solution type
  */

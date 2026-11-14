@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The objective is minimized. Use {@link #builder()} to configure the solver, then supply
  * acceptance and stopping criteria to {@link #solve}. Instances share their configured components
- * and RNG across calls and must not be used for concurrent searches.
+ * and random generator across calls and must not be used for concurrent searches.
  *
  * @param <S> the solution type
  */
@@ -52,17 +52,17 @@ public final class Alns<S extends Solution<S>> {
       RandomGenerator randomGenerator,
       List<DestroyOperator<S>> destroyOperators,
       List<RepairOperator<S>> repairOperators,
+      List<String> destroyOperatorNames,
+      List<String> repairOperatorNames,
       OperatorSelector<S> operatorSelector,
       boolean collectStatistics,
       VisitedSolutionTracker<S> visitedSolutionTracker,
       LocalSearch<S> localSearch,
-      IterationCallback<S> iterationCallback,
-      List<String> destroyOperatorNames,
-      List<String> repairOperatorNames) {
+      IterationCallback<S> iterationCallback) {
     this.randomGenerator =
         Objects.requireNonNull(randomGenerator, "randomGenerator must not be null.");
-    this.destroyOperators = copyNonEmpty(destroyOperators, "destroyOperators");
-    this.repairOperators = copyNonEmpty(repairOperators, "repairOperators");
+    this.destroyOperators = List.copyOf(destroyOperators);
+    this.repairOperators = List.copyOf(repairOperators);
     this.destroyOperatorNames = copyOperatorNames(destroyOperatorNames, "destroy");
     this.repairOperatorNames = copyOperatorNames(repairOperatorNames, "repair");
     this.operatorSelector =
@@ -89,11 +89,11 @@ public final class Alns<S extends Solution<S>> {
   /**
    * Searches from a feasible initial solution until the stopping criterion requests termination.
    *
-   * <p>Resets the selector, criteria, and tracker before each run, but does not reset the RNG or
-   * operators. The initial solution is copied, and statistics are created separately for each run.
-   * Acceptance is evaluated every iteration; infeasible candidates are rejected, while feasible new
-   * bests are accepted regardless of the acceptance decision. Iterations are numbered from one;
-   * iteration zero denotes the initial solution.
+   * <p>Resets the selector, criteria, and tracker before each run, but does not reset the random
+   * generator or operators. The initial solution is copied, and statistics are created separately
+   * for each run. Acceptance is evaluated every iteration; infeasible candidates are rejected,
+   * while feasible new bests are accepted regardless of the acceptance decision. Iterations are
+   * numbered from one; iteration zero denotes the initial solution.
    *
    * <p>If configured, local search runs directly on feasible repaired solutions before evaluation.
    * Its result is checked again for feasibility and used by acceptance, tracking, feedback, and
@@ -299,24 +299,21 @@ public final class Alns<S extends Solution<S>> {
     }
   }
 
-  private static <T> List<T> copyNonEmpty(List<T> values, String name) {
-    Objects.requireNonNull(values, name + " must not be null.");
-    if (values.isEmpty()) {
-      throw new IllegalArgumentException(name + " must not be empty.");
+  private void validateOperatorSelection(OperatorSelection operatorSelection) {
+    if (operatorSelection.destroyOperatorIndex() < 0
+        || operatorSelection.destroyOperatorIndex() >= destroyOperators.size()
+        || operatorSelection.repairOperatorIndex() < 0
+        || operatorSelection.repairOperatorIndex() >= repairOperators.size()) {
+      throw new IllegalStateException("operatorSelector returned an out-of-range operator index.");
     }
-    return List.copyOf(values);
   }
 
-  static List<String> defaultOperatorNames(String kind, int count) {
-    List<String> names = new ArrayList<>(count);
-    for (int index = 0; index < count; index++) {
-      names.add(defaultOperatorName(kind, index));
-    }
-    return List.copyOf(names);
+  private static <S extends Solution<S>> S copyOf(S solution, String message) {
+    return Objects.requireNonNull(solution.copy(), message);
   }
 
-  private static String defaultOperatorName(String kind, int index) {
-    return kind + "-" + index;
+  private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S currentSolution) {
+    return candidateSolution.getObjectiveValue() < currentSolution.getObjectiveValue();
   }
 
   private static List<String> copyOperatorNames(List<String> names, String kind) {
@@ -332,21 +329,16 @@ public final class Alns<S extends Solution<S>> {
     return List.copyOf(names);
   }
 
-  private static <S extends Solution<S>> S copyOf(S solution, String message) {
-    return Objects.requireNonNull(solution.copy(), message);
-  }
-
-  private static <S extends Solution<S>> boolean isBetter(S candidateSolution, S currentSolution) {
-    return candidateSolution.getObjectiveValue() < currentSolution.getObjectiveValue();
-  }
-
-  private void validateOperatorSelection(OperatorSelection operatorSelection) {
-    if (operatorSelection.destroyOperatorIndex() < 0
-        || operatorSelection.destroyOperatorIndex() >= destroyOperators.size()
-        || operatorSelection.repairOperatorIndex() < 0
-        || operatorSelection.repairOperatorIndex() >= repairOperators.size()) {
-      throw new IllegalStateException("operatorSelector returned an out-of-range operator index.");
+  static List<String> defaultOperatorNames(String kind, int count) {
+    List<String> names = new ArrayList<>(count);
+    for (int index = 0; index < count; index++) {
+      names.add(defaultOperatorName(kind, index));
     }
+    return List.copyOf(names);
+  }
+
+  private static String defaultOperatorName(String kind, int index) {
+    return kind + "-" + index;
   }
 
   /**
@@ -463,8 +455,8 @@ public final class Alns<S extends Solution<S>> {
     /**
      * Enables or disables statistics collection.
      *
-     * @param collectStatistics whether to retain full histories and outcome counts; false by
-     *     default
+     * @param collectStatistics whether to retain full histories and outcome counts; {@code false}
+     *     by default
      * @return this builder
      */
     public Builder<S> collectStatistics(boolean collectStatistics) {
@@ -539,13 +531,13 @@ public final class Alns<S extends Solution<S>> {
           configuredRandomGenerator,
           destroyOperators,
           repairOperators,
+          destroyOperatorNames,
+          repairOperatorNames,
           configuredOperatorSelector,
           collectStatistics,
           visitedSolutionTracker,
           localSearch,
-          iterationCallback,
-          destroyOperatorNames,
-          repairOperatorNames);
+          iterationCallback);
     }
   }
 }
